@@ -1,13 +1,22 @@
-import { supabase } from '@/lib/supabase'
+import { getAdminClient } from '@/lib/server/admin'
+import { createClient } from '@supabase/supabase-js'
 import { generateLayout, getHourlySeed, StoryWithPhoto } from '@/lib/layout-engine'
 import { HomepageLayout } from '@/lib/supabase'
 import World from '@/components/canvas/World'
 import Cursor from '@/components/ui/Cursor'
 
 // Revalidate every hour — matches the layout refresh cadence
-export const revalidate = 3600
+export const dynamic = 'force-dynamic'
 
 async function getLayout(): Promise<HomepageLayout> {
+  // Public reads work before server storage credentials are configured.
+  const publicClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+  const { data: published, error: publishedError } = await publicClient.from('stories').select('id').eq('published', true)
+  if (publishedError) throw publishedError
+  if (!published?.length) return { cards: [] }
+  const supabase = getAdminClient()
   // 1. Check if a valid cached layout exists in the DB
   const { data: existing } = await supabase
     .from('homepage_layouts')
@@ -19,7 +28,9 @@ async function getLayout(): Promise<HomepageLayout> {
     .single()
 
   if (existing?.layout_data) {
-    return existing.layout_data as HomepageLayout
+    const publishedIds = new Set(published.map(story => story.id))
+    const layout = existing.layout_data as HomepageLayout
+    return { cards: layout.cards.filter(card => publishedIds.has(card.story_id)) }
   }
 
   // 2. No valid layout — generate a new one

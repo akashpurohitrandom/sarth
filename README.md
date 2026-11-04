@@ -11,7 +11,7 @@ A living museum of photography.
 
 ## Status
 
-Recovered application source, not yet connected to the new infrastructure. The new Supabase public schema is empty. Existing photographs and stories have not been migrated. Database definitions and storage policies must be reconstructed and reviewed before use.
+The recovered application is preserved on main. Infrastructure work is on setup/supabase-vercel. This is a fresh start: existing stories and photographs will not be migrated. database/bootstrap.sql defines the new schema and storage policies and was applied once to the new project. The sole admin is registered in admin_users. Originals are private; web images and thumbnails are public.
 
 ## Development
 
@@ -23,9 +23,15 @@ Develop on a branch, verify changes, and prepare a preview for review. Productio
 
 ## Known blockers before launch
 
-- Authenticate and authorize the privileged image-processing endpoint.
-- Reconstruct database functions, RLS, and storage policies with single-admin access.
-- Publish only after successful image processing; remove the private-original public-URL fallback.
-- Invalidate the website cache when publishing, unpublishing, or deleting stories.
-- Replace the old Supabase hostname in image configuration.
-- Confirm whether existing stories and original photographs need migration.
+- Disable public signups in Supabase Auth settings. Database and API access already require the explicitly registered administrator.
+- Do not rerun database/bootstrap.sql against the initialized database. Use reviewed migrations for subsequent changes.
+- SUPABASE_SERVICE_ROLE_KEY is configured as a sensitive Vercel variable for Preview and Production. Both modern sb_secret_ keys and legacy service-role keys are supported; never share or commit them. Public configuration uses the new publishable key, despite the retained ANON_KEY variable name.
+- Verify an authenticated upload, publication, unpublication, and storage deletion through the preview before releasing.
+- Connect GitHub to Vercel with automatic deployments disabled. Explicit preview deployments are allowed; production requires approval.
+- Review and approve the production release and sarth.art domain cutover.
+
+## Validation
+
+`npm run build` checks compilation and TypeScript. `node scripts/smoke.mjs <base-url>` verifies admin login and denial of unsigned privileged requests. The initial dependency audit is clean. React 18 remains supported but deprecated by Next.js 16; migrate separately before Next.js 17.
+
+Preview currently targets the new empty Supabase project intended for production. Until a separate staging database is configured, admin writes from the preview affect that same project; never run destructive checks against real uploaded content.

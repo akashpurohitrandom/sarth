@@ -17,6 +17,15 @@ export default function LoginPage() {
     setError('')
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) { setError(error.message); setLoading(false); return }
+    const { data: userData } = await supabase.auth.getUser()
+    const { data: admin } = await supabase.from('admin_users').select('user_id')
+      .eq('user_id', userData.user?.id || '').maybeSingle()
+    if (!admin) {
+      await supabase.auth.signOut()
+      setError('This account does not have administrator access.')
+      setLoading(false)
+      return
+    }
     router.push('/admin')
   }
 

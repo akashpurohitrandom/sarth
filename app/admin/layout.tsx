@@ -15,13 +15,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [])
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (!data.session && pathname !== '/admin/login') {
-        router.push('/admin/login')
-      } else {
-        setChecking(false)
-      }
-    })
+    let cancelled = false
+    async function check() {
+      if (pathname === '/admin/login') { setChecking(false); return }
+      setChecking(true)
+      const { data } = await supabase.auth.getUser()
+      const { data: admin } = data.user
+        ? await supabase.from('admin_users').select('user_id').eq('user_id', data.user.id).maybeSingle()
+        : { data: null }
+      if (cancelled) return
+      if (!admin) { router.replace('/admin/login'); return }
+      setChecking(false)
+    }
+    check().catch(() => { if (!cancelled) router.replace('/admin/login') })
+    return () => { cancelled = true }
+
   }, [router, pathname])
 
   if (checking && pathname !== '/admin/login') {

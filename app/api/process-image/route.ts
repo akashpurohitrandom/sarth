@@ -1,91 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { authorizeAdmin } from '@/lib/server/admin'
 
-// Server-side Supabase client with service role key for storage write access
-function getAdminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
+export const runtime = 'nodejs'
+export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { story_id, original_path, caption, display_order, width, height } = body
-
-    const supabase = getAdminClient()
-
-    // Download the original from storage
-    const { data: fileData, error: downloadErr } = await supabase
-      .storage
-      .from('originals')
-      .download(original_path)
-
-    if (downloadErr || !fileData) {
-      return NextResponse.json({ error: 'Could not download original' }, { status: 500 })
+    const auth = await authorizeAdmin(req)
+    if (auth.response) return auth.response
+    const supabase = auth.client!
+    const { story_id, original_path, caption, display_order } = await req.json()
+    if (typeof story_id !== 'string' || !/^[0-9a-f-]{36}$/i.test(story_id) ||
+        typeof original_path !== 'string' || !original_path.startsWith(`${story_id}/`) ||
+        original_path.includes('..') || original_path.split('/').length !== 2 ||
+        !Number.isInteger(display_order) || display_order < 0 ||
+        (caption != null && (typeof caption !== 'string' || caption.length > 2000))) {
+      return NextResponse.json({ error: 'Invalid photograph details.' }, { status: 400 })
     }
+    const { data: story, error: storyError } = await supabase.from('stories')
+      .select('id, published').eq('id', story_id).single()
+    if (storyError || !story) return NextResponse.json({ error: 'Story not found.' }, { status: 404 })
+    if (story.published) return NextResponse.json({ error: 'Unpublish the story before changing its photographs.' }, { status: 409 })
 
-    // Convert blob to buffer
+    const { data: fileData, error: downloadError } = await supabase.storage.from('originals').download(original_path)
+    if (downloadError || !fileData) throw new Error('Could not download the original. Please retry.')
+    if (fileData.size > 50 * 1024 * 1024) return NextResponse.json({ error: 'Photographs must be under 50 MB.' }, { status: 413 })
     const buffer = Buffer.from(await fileData.arrayBuffer())
-
-    // Dynamic import of sharp (only available server-side)
     const sharp = (await import('sharp')).default
-
-    // Web version — max 2000px, MozJPEG quality 82
-    const webBuffer = await sharp(buffer)
-      .rotate() // auto-rotate from EXIF
+    const source = sharp(buffer, { limitInputPixels: 100_000_000 }).rotate()
+    const { data: webBuffer, info } = await source.clone()
       .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 82, mozjpeg: true })
-      .toBuffer()
-
-    // Thumbnail version — max 600px, quality 75
-    const thumbBuffer = await sharp(buffer)
-      .rotate()
+      .jpeg({ quality: 82, mozjpeg: true }).toBuffer({ resolveWithObject: true })
+    const thumbBuffer = await source.clone()
       .resize(600, 600, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 75, mozjpeg: true })
-      .toBuffer()
-
-    // Get final dimensions after processing
-    const meta = await sharp(buffer).rotate().metadata()
-    const finalW = meta.width  || width  || 1200
-    const finalH = meta.height || height || 800
-
-    const webPath   = original_path.replace('originals/', '')
-    const thumbPath = original_path.replace('originals/', 'thumb-')
-
-    // Upload web version
-    const { error: webErr } = await supabase.storage
-      .from('photographs')
-      .upload(webPath, webBuffer, { contentType: 'image/jpeg', upsert: true })
-
-    // Upload thumbnail
-    const { error: thumbErr } = await supabase.storage
-      .from('thumbnails')
-      .upload(thumbPath, thumbBuffer, { contentType: 'image/jpeg', upsert: true })
-
-    if (webErr || thumbErr) {
-      console.error('Upload errors:', webErr, thumbErr)
-    }
-
-    // Create database record
-    const { error: dbErr } = await supabase.from('photographs').insert({
-      story_id,
-      storage_path:   `originals/${original_path}`,
-      web_path:       `photographs/${webPath}`,
-      thumbnail_path: `thumbnails/${thumbPath}`,
-      width:          finalW,
-      height:         finalH,
-      caption:        caption || null,
-      display_order,
-    })
-
-    if (dbErr) throw new Error(dbErr.message)
-
+      .jpeg({ quality: 75, mozjpeg: true }).toBuffer()
+    const path = original_path.replace(/\.[^.]+$/, '') + '.jpg'
+    const { error: webError } = await supabase.storage.from('photographs')
+      .upload(path, webBuffer, { contentType: 'image/jpeg', upsert: true })
+    if (webError) throw new Error('Could not save the web photograph. Please retry.')
+    const { error: thumbError } = await supabase.storage.from('thumbnails')
+      .upload(path, thumbBuffer, { contentType: 'image/jpeg', upsert: true })
+    if (thumbError) throw new Error('Could not save the thumbnail. Please retry.')
+    const { error: dbError } = await supabase.from('photographs').upsert({
+      story_id, storage_path: `originals/${original_path}`,
+      web_path: `photographs/${path}`, thumbnail_path: `thumbnails/${path}`,
+      width: info.width, height: info.height,
+      caption: caption || null, display_order,
+    }, { onConflict: 'storage_path' })
+    if (dbError) throw new Error('Could not save photograph details. Please retry.')
     return NextResponse.json({ success: true })
-
-  } catch (err: any) {
-    console.error('process-image error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+  } catch (error) {
+    console.error('Image processing failed:', error)
+    return NextResponse.json({ error: 'Photograph processing failed. Your draft is saved; please retry.' }, { status: 500 })
   }
 }
