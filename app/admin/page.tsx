@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase, Story } from '@/lib/supabase'
+import { adminRequest } from '@/lib/admin-request'
 
 export default function AdminDashboard() {
   const [stories, setStories] = useState<Story[]>([])
@@ -19,17 +20,18 @@ export default function AdminDashboard() {
   useEffect(() => { load() }, [])
 
   const togglePublish = async (story: Story) => {
-    await supabase
-      .from('stories')
-      .update({ published: !story.published })
-      .eq('id', story.id)
-    load()
+    try {
+      await adminRequest(`/api/admin/stories/${story.id}`, { action: story.published ? 'unpublish' : 'publish' })
+      await load()
+    } catch (error) { alert(error instanceof Error ? error.message : 'Could not update story.') }
   }
 
   const deleteStory = async (id: string) => {
-    if (!confirm('Delete this story? This cannot be undone.')) return
-    await supabase.from('stories').delete().eq('id', id)
-    load()
+    if (!confirm('Delete this story and all its photographs? This cannot be undone.')) return
+    try {
+      await adminRequest(`/api/admin/stories/${id}`, { action: 'delete' })
+      await load()
+    } catch (error) { alert(error instanceof Error ? error.message : 'Could not delete story.') }
   }
 
   if (loading) return (

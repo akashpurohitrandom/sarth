@@ -180,7 +180,7 @@ export default function StoryPage() {
                   width:       slot.width,
                   marginLeft,
                   marginRight,
-                  marginBottom: slot.margin.split(' ')[3] || '6vh',
+                  marginBottom: slot.margin.split(' ')[2] || '6vh',
                   cursor:      'none',
                 }}
                 onClick={() => openViewer(index)}

@@ -25,9 +25,24 @@ export type Photograph = {
   thumbnail_path: string | null
   width: number | null
   height: number | null
+  photograph_title: string | null
+  taken_on: string | null
+  city: string | null
+  country: string | null
   caption: string | null
   display_order: number
   created_at: string
+}
+
+export type GalleryPhoto = Pick<Photograph,
+  'id' | 'story_id' | 'web_path' | 'photograph_title' | 'taken_on' | 'city' | 'country' | 'width' | 'height'
+> & { web_path: string }
+
+export type GalleryStory = {
+  id: string
+  title: string
+  slug: string
+  photographs: GalleryPhoto[]
 }
 
 export type HomepageCard = {

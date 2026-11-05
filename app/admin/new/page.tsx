@@ -3,11 +3,17 @@
 import { useState, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { adminRequest } from '@/lib/admin-request'
 
 type UploadFile = {
+  id:       string
   file:     File
   preview:  string
   caption:  string
+  photographTitle: string
+  takenOn: string
+  city: string
+  country: string
   status:   'pending' | 'uploading' | 'done' | 'error'
   progress: number
 }
@@ -16,6 +22,7 @@ export default function NewStoryPage() {
   const router = useRouter()
   const dropRef = useRef<HTMLDivElement>(null)
 
+  const [draftId, setDraftId] = useState<string | null>(null)
   const [title,        setTitle]        = useState('')
   const [introduction, setIntroduction] = useState('')
   const [files,        setFiles]        = useState<UploadFile[]>([])
@@ -24,20 +31,31 @@ export default function NewStoryPage() {
   const [error,        setError]        = useState('')
 
   // Accepted image types
-  const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp', 'image/heic']
+  const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp']
 
   const addFiles = useCallback((incoming: FileList | File[]) => {
-    const arr = Array.from(incoming).filter(f => ACCEPTED.includes(f.type))
+    if (draftId || publishing) return
+    const candidates = Array.from(incoming)
+    if (candidates.some(f => !ACCEPTED.includes(f.type) || f.size > 50 * 1024 * 1024)) {
+      setError('Use JPEG, PNG, or WebP files under 50 MB.')
+      return
+    }
+    const arr = candidates
     const newFiles: UploadFile[] = arr.map(f => ({
+      id:       crypto.randomUUID(),
       file:     f,
       preview:  URL.createObjectURL(f),
       caption:  '',
+      photographTitle: '',
+      takenOn: '',
+      city: '',
+      country: '',
       status:   'pending',
       progress: 0,
     }))
     setFiles(prev => [...prev, ...newFiles])
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [draftId, publishing])
 
   // Drag handlers
   const onDragOver = (e: React.DragEvent) => {
@@ -52,11 +70,16 @@ export default function NewStoryPage() {
   }
 
   const removeFile = (index: number) => {
+    if (draftId || publishing) return
     setFiles(prev => prev.filter((_, i) => i !== index))
   }
 
   const updateCaption = (index: number, caption: string) => {
     setFiles(prev => prev.map((f, i) => i === index ? { ...f, caption } : f))
+  }
+
+  const updatePhoto = (index: number, field: 'photographTitle' | 'takenOn' | 'city' | 'country', value: string) => {
+    setFiles(prev => prev.map((f, i) => i === index ? { ...f, [field]: value } : f))
   }
 
   const handlePublish = async () => {
@@ -66,82 +89,48 @@ export default function NewStoryPage() {
     setPublishing(true)
 
     try {
-      // 1. Create story record
-      const { data: story, error: storyError } = await supabase
-        .from('stories')
-        .insert({ title: title.trim(), introduction: introduction.trim() || null, published: true })
-        .select()
-        .single()
-
-      if (storyError || !story) throw new Error(storyError?.message || 'Failed to create story')
-
-      // 2. Upload each photograph
+      let id = draftId
+      if (!id) {
+        const { data: story, error } = await supabase.from('stories')
+          .insert({ title: title.trim(), introduction: introduction.trim() || null, published: false })
+          .select().single()
+        if (error || !story) throw new Error(error?.message || 'Could not create draft.')
+        id = story.id as string
+        setDraftId(id)
+      } else {
+        const { error } = await supabase.from('stories')
+          .update({ title: title.trim(), introduction: introduction.trim() || null }).eq('id', id)
+        if (error) throw error
+      }
+      let failed = 0
       for (let i = 0; i < files.length; i++) {
         const uf = files[i]
-        setFiles(prev => prev.map((f, idx) =>
-          idx === i ? { ...f, status: 'uploading', progress: 10 } : f
-        ))
-
-        const ext      = uf.file.name.split('.').pop()?.toLowerCase() || 'jpg'
-        const filename = `${story.id}/${Date.now()}-${i}.${ext}`
-
-        // Upload original to originals bucket
-        const { error: uploadErr } = await supabase.storage
-          .from('originals')
-          .upload(filename, uf.file, { contentType: uf.file.type })
-
-        if (uploadErr) {
-          setFiles(prev => prev.map((f, idx) =>
-            idx === i ? { ...f, status: 'error' } : f
-          ))
-          continue
-        }
-
-        setFiles(prev => prev.map((f, idx) =>
-          idx === i ? { ...f, progress: 50 } : f
-        ))
-
-        // Get image dimensions from preview
-        const dims = await getImageDimensions(uf.preview)
-
-        // Call our API route to compress + create web/thumbnail versions
-        const res = await fetch('/api/process-image', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({
-            story_id:      story.id,
-            original_path: filename,
-            caption:       uf.caption || null,
-            display_order: i,
-            width:         dims.width,
-            height:        dims.height,
-          }),
-        })
-
-        if (!res.ok) {
-          // Fall back — store original path directly
-          await supabase.from('photographs').insert({
-            story_id:      story.id,
-            storage_path:  `originals/${filename}`,
-            web_path:      `originals/${filename}`,
-            thumbnail_path:`originals/${filename}`,
-            width:         dims.width,
-            height:        dims.height,
-            caption:       uf.caption || null,
+        if (uf.status === 'done') continue
+        setFiles(prev => prev.map((f, idx) => idx === i ? { ...f, status: 'uploading', progress: 10 } : f))
+        try {
+          const extension = uf.file.type === 'image/png' ? 'png' : uf.file.type === 'image/webp' ? 'webp' : 'jpg'
+          const filename = `${id}/${uf.id}.${extension}`
+          const { error } = await supabase.storage.from('originals')
+            .upload(filename, uf.file, { contentType: uf.file.type, upsert: true })
+          if (error) throw error
+          setFiles(prev => prev.map((f, idx) => idx === i ? { ...f, progress: 50 } : f))
+          await adminRequest('/api/process-image', {
+            story_id: id, original_path: filename,
+            caption: uf.caption || null,
+            photograph_title: uf.photographTitle.trim() || null,
+            taken_on: uf.takenOn || null,
+            city: uf.city.trim() || null,
+            country: uf.country.trim() || null,
             display_order: i,
           })
+          setFiles(prev => prev.map((f, idx) => idx === i ? { ...f, status: 'done', progress: 100 } : f))
+        } catch {
+          failed++
+          setFiles(prev => prev.map((f, idx) => idx === i ? { ...f, status: 'error' } : f))
         }
-
-        setFiles(prev => prev.map((f, idx) =>
-          idx === i ? { ...f, status: 'done', progress: 100 } : f
-        ))
       }
-
-      // 3. Invalidate homepage cache
-      await supabase
-        .from('homepage_layouts')
-        .update({ is_active: false })
-        .eq('is_active', true)
+      if (failed) throw new Error(`${failed} photograph(s) failed. Your story is a draft. Retry publishing to resume.`)
+      await adminRequest(`/api/admin/stories/${id}`, { action: 'publish', expectedPhotos: files.length })
 
       router.push('/admin')
 
@@ -169,6 +158,7 @@ export default function NewStoryPage() {
         <input
           type="text"
           value={title}
+          disabled={publishing}
           onChange={e => setTitle(e.target.value)}
           placeholder="e.g. Morning in Kyoto"
           style={{ ...inputStyle, fontSize: '1.3rem', fontFamily: 'DM Serif Display, Georgia, serif', fontStyle: 'italic' }}
@@ -180,6 +170,7 @@ export default function NewStoryPage() {
         <label style={labelStyle}>Story Introduction</label>
         <textarea
           value={introduction}
+          disabled={publishing}
           onChange={e => setIntroduction(e.target.value)}
           placeholder="Write what this story is about. What you saw, what you felt, what you were looking for."
           rows={4}
@@ -212,13 +203,13 @@ export default function NewStoryPage() {
             Drop your entire photo folder here
           </p>
           <p style={{ fontSize: '0.72rem', color: '#444' }}>
-            or click to browse · JPG, PNG, WEBP, HEIC
+            or click to browse · JPG, PNG, WEBP · up to 50 MB
           </p>
         </div>
         <input
           id="fileInput"
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
           multiple
           style={{ display: 'none' }}
           onChange={e => e.target.files && addFiles(e.target.files)}
@@ -266,19 +257,51 @@ export default function NewStoryPage() {
                     justifyContent: 'center', fontSize: '10px', color: '#111',
                   }}>✓</div>
                 )}
-                {/* Caption input */}
-                <div style={{ padding: '0.6rem' }}>
+                {/* Per-photograph title and place/date details */}
+                <div style={{ padding: '0.65rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem' }}>
+                  <input
+                    type="text"
+                    placeholder="Photograph title"
+                    aria-label={`Photograph ${i + 1} title`}
+                    disabled={publishing || uf.status === 'done'}
+                    value={uf.photographTitle}
+                    onChange={e => updatePhoto(i, 'photographTitle', e.target.value)}
+                    style={photoInputStyle}
+                  />
+                  <input
+                    type="date"
+                    aria-label={`Photograph ${i + 1} date`}
+                    disabled={publishing || uf.status === 'done'}
+                    value={uf.takenOn}
+                    onChange={e => updatePhoto(i, 'takenOn', e.target.value)}
+                    style={{ ...photoInputStyle, colorScheme: 'dark' }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="City"
+                    aria-label={`Photograph ${i + 1} city`}
+                    disabled={publishing || uf.status === 'done'}
+                    value={uf.city}
+                    onChange={e => updatePhoto(i, 'city', e.target.value)}
+                    style={photoInputStyle}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Country"
+                    aria-label={`Photograph ${i + 1} country`}
+                    disabled={publishing || uf.status === 'done'}
+                    value={uf.country}
+                    onChange={e => updatePhoto(i, 'country', e.target.value)}
+                    style={photoInputStyle}
+                  />
                   <input
                     type="text"
                     placeholder="Caption (optional)"
+                    aria-label={`Photograph ${i + 1} caption`}
+                    disabled={publishing || uf.status === 'done'}
                     value={uf.caption}
                     onChange={e => updateCaption(i, e.target.value)}
-                    style={{
-                      width: '100%', background: 'transparent',
-                      border: 'none', borderBottom: '1px solid rgba(255,255,255,0.08)',
-                      color: '#F2EDE6', fontSize: '0.72rem', padding: '4px 0',
-                      outline: 'none', fontFamily: 'DM Sans, system-ui, sans-serif',
-                    }}
+                    style={{ ...photoInputStyle, gridColumn: '1 / -1' }}
                   />
                 </div>
                 {/* Remove button */}
@@ -341,14 +364,6 @@ export default function NewStoryPage() {
   )
 }
 
-function getImageDimensions(src: string): Promise<{ width: number; height: number }> {
-  return new Promise(resolve => {
-    const img = new Image()
-    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight })
-    img.onerror = () => resolve({ width: 1200, height: 800 })
-    img.src = src
-  })
-}
 
 const labelStyle: React.CSSProperties = {
   display:       'block',
@@ -370,4 +385,17 @@ const inputStyle: React.CSSProperties = {
   fontFamily:   'DM Sans, system-ui, sans-serif',
   outline:      'none',
   fontWeight:   300,
+}
+
+const photoInputStyle: React.CSSProperties = {
+  minWidth: 0,
+  width: '100%',
+  padding: '7px 6px',
+  background: '#111',
+  border: '1px solid rgba(255,255,255,0.08)',
+  borderRadius: '3px',
+  color: '#F2EDE6',
+  fontSize: '0.68rem',
+  fontFamily: 'DM Sans, system-ui, sans-serif',
+  outline: 'none',
 }
