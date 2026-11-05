@@ -29,6 +29,10 @@ create table public.photographs (
   thumbnail_path text,
   width integer check (width > 0),
   height integer check (height > 0),
+  photograph_title text check (photograph_title is null or length(photograph_title) <= 200),
+  taken_on date,
+  city text check (city is null or length(city) <= 120),
+  country text check (country is null or length(country) <= 120),
   caption text,
   display_order integer not null default 0,
   created_at timestamptz not null default now()

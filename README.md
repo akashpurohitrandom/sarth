@@ -11,7 +11,7 @@ A living museum of photography.
 
 ## Status
 
-The recovered application is preserved on main. Infrastructure work is on setup/supabase-vercel. This is a fresh start: existing stories and photographs will not be migrated. database/bootstrap.sql defines the new schema and storage policies and was applied once to the new project. The sole admin is registered in admin_users. Originals are private; web images and thumbnails are public.
+The recovered application is preserved on main. Infrastructure work is on setup/supabase-vercel. This is a fresh start: existing stories and photographs will not be migrated. database/bootstrap.sql defines the initial schema and storage policies and was applied once to the new project. `database/migrations/20261105145100_add_photograph_display_metadata.sql` adds the per-photograph title, date, city, and country fields used by the gallery; it has been applied to the new project. The sole admin is registered in admin_users. Originals are private; web images and thumbnails are public.
 
 ## Development
 

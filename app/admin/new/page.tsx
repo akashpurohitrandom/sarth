@@ -10,6 +10,10 @@ type UploadFile = {
   file:     File
   preview:  string
   caption:  string
+  photographTitle: string
+  takenOn: string
+  city: string
+  country: string
   status:   'pending' | 'uploading' | 'done' | 'error'
   progress: number
 }
@@ -42,6 +46,10 @@ export default function NewStoryPage() {
       file:     f,
       preview:  URL.createObjectURL(f),
       caption:  '',
+      photographTitle: '',
+      takenOn: '',
+      city: '',
+      country: '',
       status:   'pending',
       progress: 0,
     }))
@@ -68,6 +76,10 @@ export default function NewStoryPage() {
 
   const updateCaption = (index: number, caption: string) => {
     setFiles(prev => prev.map((f, i) => i === index ? { ...f, caption } : f))
+  }
+
+  const updatePhoto = (index: number, field: 'photographTitle' | 'takenOn' | 'city' | 'country', value: string) => {
+    setFiles(prev => prev.map((f, i) => i === index ? { ...f, [field]: value } : f))
   }
 
   const handlePublish = async () => {
@@ -104,7 +116,12 @@ export default function NewStoryPage() {
           setFiles(prev => prev.map((f, idx) => idx === i ? { ...f, progress: 50 } : f))
           await adminRequest('/api/process-image', {
             story_id: id, original_path: filename,
-            caption: uf.caption || null, display_order: i,
+            caption: uf.caption || null,
+            photograph_title: uf.photographTitle.trim() || null,
+            taken_on: uf.takenOn || null,
+            city: uf.city.trim() || null,
+            country: uf.country.trim() || null,
+            display_order: i,
           })
           setFiles(prev => prev.map((f, idx) => idx === i ? { ...f, status: 'done', progress: 100 } : f))
         } catch {
@@ -192,7 +209,7 @@ export default function NewStoryPage() {
         <input
           id="fileInput"
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
           multiple
           style={{ display: 'none' }}
           onChange={e => e.target.files && addFiles(e.target.files)}
@@ -240,20 +257,51 @@ export default function NewStoryPage() {
                     justifyContent: 'center', fontSize: '10px', color: '#111',
                   }}>✓</div>
                 )}
-                {/* Caption input */}
-                <div style={{ padding: '0.6rem' }}>
+                {/* Per-photograph title and place/date details */}
+                <div style={{ padding: '0.65rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem' }}>
+                  <input
+                    type="text"
+                    placeholder="Photograph title"
+                    aria-label={`Photograph ${i + 1} title`}
+                    disabled={publishing || uf.status === 'done'}
+                    value={uf.photographTitle}
+                    onChange={e => updatePhoto(i, 'photographTitle', e.target.value)}
+                    style={photoInputStyle}
+                  />
+                  <input
+                    type="date"
+                    aria-label={`Photograph ${i + 1} date`}
+                    disabled={publishing || uf.status === 'done'}
+                    value={uf.takenOn}
+                    onChange={e => updatePhoto(i, 'takenOn', e.target.value)}
+                    style={{ ...photoInputStyle, colorScheme: 'dark' }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="City"
+                    aria-label={`Photograph ${i + 1} city`}
+                    disabled={publishing || uf.status === 'done'}
+                    value={uf.city}
+                    onChange={e => updatePhoto(i, 'city', e.target.value)}
+                    style={photoInputStyle}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Country"
+                    aria-label={`Photograph ${i + 1} country`}
+                    disabled={publishing || uf.status === 'done'}
+                    value={uf.country}
+                    onChange={e => updatePhoto(i, 'country', e.target.value)}
+                    style={photoInputStyle}
+                  />
                   <input
                     type="text"
                     placeholder="Caption (optional)"
+                    aria-label={`Photograph ${i + 1} caption`}
                     disabled={publishing || uf.status === 'done'}
                     value={uf.caption}
                     onChange={e => updateCaption(i, e.target.value)}
-                    style={{
-                      width: '100%', background: 'transparent',
-                      border: 'none', borderBottom: '1px solid rgba(255,255,255,0.08)',
-                      color: '#F2EDE6', fontSize: '0.72rem', padding: '4px 0',
-                      outline: 'none', fontFamily: 'DM Sans, system-ui, sans-serif',
-                    }}
+                    style={{ ...photoInputStyle, gridColumn: '1 / -1' }}
                   />
                 </div>
                 {/* Remove button */}
@@ -337,4 +385,17 @@ const inputStyle: React.CSSProperties = {
   fontFamily:   'DM Sans, system-ui, sans-serif',
   outline:      'none',
   fontWeight:   300,
+}
+
+const photoInputStyle: React.CSSProperties = {
+  minWidth: 0,
+  width: '100%',
+  padding: '7px 6px',
+  background: '#111',
+  border: '1px solid rgba(255,255,255,0.08)',
+  borderRadius: '3px',
+  color: '#F2EDE6',
+  fontSize: '0.68rem',
+  fontFamily: 'DM Sans, system-ui, sans-serif',
+  outline: 'none',
 }
