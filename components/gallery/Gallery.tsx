@@ -61,6 +61,7 @@ export default function Gallery({ stories }: Props) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
       if (event.target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return
+      if (event.key === ' ' && event.target instanceof HTMLElement && ['BUTTON', 'A'].includes(event.target.tagName)) return
       if (['ArrowDown', 'PageDown', ' '].includes(event.key)) {
         event.preventDefault()
         advance(1)
@@ -75,6 +76,7 @@ export default function Gallery({ stories }: Props) {
 
   useEffect(() => {
     const onWheel = (event: WheelEvent) => {
+      if (event.target instanceof Element && event.target.closest('.gallery-stories')) return
       if (Math.abs(event.deltaY) < 12 || wheelLock.current) return
       event.preventDefault()
       wheelLock.current = true
@@ -92,7 +94,11 @@ export default function Gallery({ stories }: Props) {
 
   return (
     <main className="gallery" aria-label="Sārth photographs"
-      onTouchStart={event => { touchStart.current = event.touches[0]?.clientY ?? null }}
+      onTouchStart={event => {
+        touchStart.current = event.target instanceof Element && event.target.closest('.gallery-stories')
+          ? null
+          : event.touches[0]?.clientY ?? null
+      }}
       onTouchEnd={event => {
         if (touchStart.current === null) return
         const delta = touchStart.current - (event.changedTouches[0]?.clientY ?? touchStart.current)
