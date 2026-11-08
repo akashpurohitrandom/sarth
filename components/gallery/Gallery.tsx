@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { GalleryPhoto } from '@/lib/supabase'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -88,13 +89,14 @@ export default function Gallery({ photographs, logoUrl }: Props) {
             const distanceFromEdge = Math.min(slice, SHUTTER_SLICE_COUNT - 1 - slice)
             return (
               <div
-                className={`gallery-shutter-slice ${slice % 2 === 0 ? 'is-up' : 'is-down'}`}
+                className="gallery-shutter-slice"
                 key={`${outgoing.id}-${slice}`}
                 style={{
                   left: `${(slice / SHUTTER_SLICE_COUNT) * 100}%`,
                   width: `${100 / SHUTTER_SLICE_COUNT + 0.1}%`,
                   animationDelay: `${distanceFromEdge * 180}ms`,
-                }}
+                  '--shutter-shift': `${50 - ((slice + 0.5) * 100) / SHUTTER_SLICE_COUNT}vw`,
+                } as CSSProperties}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img

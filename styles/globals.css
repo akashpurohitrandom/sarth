@@ -112,15 +112,13 @@ body::before {
   object-position: center;
 }
 
-.gallery-shutter-slice.is-up { animation-name: gallery-shutter-up; }
-.gallery-shutter-slice.is-down { animation-name: gallery-shutter-down; }
+.gallery-shutter-slice { animation-name: gallery-shutter-collapse; }
 
-@keyframes gallery-shutter-up {
-  to { transform: translateY(-101%); }
-}
-
-@keyframes gallery-shutter-down {
-  to { transform: translateY(101%); }
+@keyframes gallery-shutter-collapse {
+  to {
+    transform: translateX(var(--shutter-shift)) scaleX(.02);
+    opacity: 0;
+  }
 }
 
 .gallery-image {
