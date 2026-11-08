@@ -140,10 +140,10 @@ body::before {
 }
 
 .gallery-wordmark img {
-  width: min(20vw, 240px);
-  height: min(5vw, 60px);
-  min-width: 150px;
-  min-height: 38px;
+  width: min(16vw, 192px);
+  height: min(4vw, 48px);
+  min-width: 120px;
+  min-height: 30px;
   object-fit: contain;
   filter: brightness(0) invert(1);
 }
@@ -219,7 +219,7 @@ body::before {
 
 @media (max-width: 700px) {
   .gallery-image { object-position: 50% 50%; }
-  .gallery-wordmark img { width: 180px; height: 48px; }
+  .gallery-wordmark img { width: 144px; height: 38px; }
   .gallery-details { max-width: 68vw; bottom: 5.25rem; }
   .gallery-hint { right: auto; left: 1.25rem; bottom: 1.5rem; }
   .gallery-controls { right: 1.25rem; bottom: 1.35rem; gap: .7rem; }
