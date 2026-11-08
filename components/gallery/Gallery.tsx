@@ -23,6 +23,18 @@ export default function Gallery({ photographs, logoUrl }: Props) {
   const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const current = sequence[index] ?? null
 
+  useEffect(() => {
+    if (sequence.length < 2) return
+    const adjacent = [
+      sequence[(index + 1) % sequence.length],
+      sequence[(index - 1 + sequence.length) % sequence.length],
+    ]
+    adjacent.forEach(photo => {
+      const image = new window.Image()
+      image.src = imageUrl(photo.web_path)
+    })
+  }, [index, sequence])
+
   const advance = useCallback((direction: 1 | -1) => {
     if (sequence.length < 2 || !current) return
     setOutgoing(current)
