@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GalleryPhoto } from '@/lib/supabase'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const IMAGE_TRANSITION_MS = 1200
+const IMAGE_TRANSITION_MS = 1000
 const PIXEL_SIZE = 8
 
 function imageUrl(path: string) {
