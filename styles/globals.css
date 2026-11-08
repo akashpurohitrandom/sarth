@@ -80,14 +80,14 @@ body::before {
 .gallery-image-stage {
   position: absolute;
   inset: 0;
-  z-index: -3;
+  z-index: 0;
   overflow: hidden;
 }
 
 .gallery-shutter-stage {
   position: absolute;
   inset: 0;
-  z-index: -2;
+  z-index: 1;
   overflow: hidden;
   pointer-events: none;
 }
@@ -135,7 +135,7 @@ body::before {
 .gallery-shade {
   position: absolute;
   inset: 0;
-  z-index: -1;
+  z-index: 2;
   pointer-events: none;
   background: linear-gradient(180deg, rgba(0,0,0,.28) 0%, transparent 20%, transparent 57%, rgba(0,0,0,.5) 100%), linear-gradient(90deg, rgba(0,0,0,.13), transparent 45%, rgba(0,0,0,.12));
 }
@@ -145,7 +145,7 @@ body::before {
   top: clamp(1.25rem, 3.2vw, 3.25rem);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 2;
+  z-index: 3;
   color: #fff;
   font-family: var(--font-display);
   font-size: clamp(1.6rem, 2.5vw, 2.5rem);
@@ -165,7 +165,7 @@ body::before {
 
 .gallery-details {
   position: absolute;
-  z-index: 2;
+  z-index: 3;
   left: clamp(1.25rem, 3.3vw, 3.5rem);
   bottom: clamp(2.75rem, 6.2vh, 5rem);
   max-width: min(46vw, 560px);
@@ -178,6 +178,7 @@ body::before {
 
 .gallery-controls {
   position: absolute;
+  z-index: 3;
   right: clamp(1.25rem, 3.3vw, 3.5rem);
   bottom: clamp(1.25rem, 3.2vw, 3.25rem);
   display: flex;
@@ -200,6 +201,7 @@ body::before {
 
 .gallery-hint {
   position: absolute;
+  z-index: 3;
   right: clamp(1.25rem, 3.3vw, 3.5rem);
   bottom: clamp(4rem, 8vh, 6rem);
   color: rgba(255,255,255,.66);
@@ -211,6 +213,7 @@ body::before {
 .gallery-empty {
   position: absolute;
   inset: 0;
+  z-index: 3;
   display: grid;
   align-content: center;
   justify-items: center;
