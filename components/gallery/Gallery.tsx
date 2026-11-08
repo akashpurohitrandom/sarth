@@ -18,6 +18,7 @@ export default function Gallery({ photographs, logoUrl }: Props) {
   const [index, setIndex] = useState(0)
   const [outgoing, setOutgoing] = useState<GalleryPhoto | null>(null)
   const [dissolveReady, setDissolveReady] = useState(false)
+  const [incomingReady, setIncomingReady] = useState(false)
   const wheelLock = useRef(false)
   const touchStart = useRef<number | null>(null)
   const dissolveCanvas = useRef<HTMLCanvasElement>(null)
@@ -42,6 +43,14 @@ export default function Gallery({ photographs, logoUrl }: Props) {
 
   useEffect(() => {
     if (!outgoing) return
+    const incomingImage = document.querySelector<HTMLImageElement>(
+      '.gallery-image-stage:not(.is-outgoing) .gallery-image',
+    )
+    if (incomingImage?.complete && incomingImage.naturalWidth > 0) setIncomingReady(true)
+  }, [current?.id, outgoing])
+
+  useEffect(() => {
+    if (!outgoing || !incomingReady) return
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       finishTransition()
       return
@@ -112,12 +121,13 @@ export default function Gallery({ photographs, logoUrl }: Props) {
       image.onload = null
       image.onerror = null
     }
-  }, [finishTransition, outgoing])
+  }, [finishTransition, incomingReady, outgoing])
 
   const advance = useCallback((direction: 1 | -1) => {
     if (sequence.length < 2 || !current) return
     setOutgoing(current)
     setDissolveReady(false)
+    setIncomingReady(false)
     setIndex(i => (i + direction + sequence.length) % sequence.length)
   }, [current, sequence.length])
 
@@ -163,7 +173,8 @@ export default function Gallery({ photographs, logoUrl }: Props) {
       {current && (
         <div className="gallery-image-stage" key={current.id}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="gallery-image" src={imageUrl(current.web_path)} alt="" fetchPriority="high" />
+          <img className="gallery-image" src={imageUrl(current.web_path)} alt="" fetchPriority="high"
+            onLoad={() => setIncomingReady(true)} onError={() => setIncomingReady(true)} />
         </div>
       )}
       {outgoing && (
