@@ -93,10 +93,17 @@ export default function Gallery({ photographs, logoUrl }: Props) {
                 style={{
                   left: `${(slice / SHUTTER_SLICE_COUNT) * 100}%`,
                   width: `${100 / SHUTTER_SLICE_COUNT + 0.1}%`,
-                  backgroundImage: `url("${imageUrl(outgoing.web_path)}")`,
                   animationDelay: `${distanceFromEdge * 180}ms`,
                 }}
-              />
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  className="gallery-shutter-image"
+                  src={imageUrl(outgoing.web_path)}
+                  alt=""
+                  style={{ left: `${(-slice * 100) / SHUTTER_SLICE_COUNT}vw` }}
+                />
+              </div>
             )
           })}
         </div>
