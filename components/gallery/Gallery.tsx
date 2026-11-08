@@ -1,12 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
 import type { GalleryPhoto } from '@/lib/supabase'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const IMAGE_TRANSITION_MS = 1800
-const SHUTTER_SLICE_COUNT = 12
+const PIXEL_SIZE = 14
 
 function imageUrl(path: string) {
   return path.startsWith('http') ? path : `${SUPABASE_URL}/storage/v1/object/public/${path}`
@@ -18,9 +17,10 @@ export default function Gallery({ photographs, logoUrl }: Props) {
   const [sequence] = useState(photographs)
   const [index, setIndex] = useState(0)
   const [outgoing, setOutgoing] = useState<GalleryPhoto | null>(null)
+  const [dissolveReady, setDissolveReady] = useState(false)
   const wheelLock = useRef(false)
   const touchStart = useRef<number | null>(null)
-  const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const dissolveCanvas = useRef<HTMLCanvasElement>(null)
   const current = sequence[index] ?? null
 
   useEffect(() => {
@@ -35,20 +35,91 @@ export default function Gallery({ photographs, logoUrl }: Props) {
     })
   }, [index, sequence])
 
+  const finishTransition = useCallback(() => {
+    setOutgoing(null)
+    setDissolveReady(false)
+  }, [])
+
+  useEffect(() => {
+    if (!outgoing) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      finishTransition()
+      return
+    }
+
+    const canvas = dissolveCanvas.current
+    const context = canvas?.getContext('2d')
+    if (!canvas || !context) {
+      finishTransition()
+      return
+    }
+
+    let animationFrame = 0
+    let cancelled = false
+    const image = new window.Image()
+    image.onload = () => {
+      if (cancelled) return
+
+      const bounds = canvas.getBoundingClientRect()
+      const ratio = window.devicePixelRatio || 1
+      const width = canvas.width = Math.max(1, Math.round(bounds.width * ratio))
+      const height = canvas.height = Math.max(1, Math.round(bounds.height * ratio))
+      const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight)
+      const imageWidth = image.naturalWidth * scale
+      const imageHeight = image.naturalHeight * scale
+      context.clearRect(0, 0, width, height)
+      context.drawImage(image, (width - imageWidth) / 2, (height - imageHeight) / 2, imageWidth, imageHeight)
+
+      const cellSize = Math.max(8, Math.round(PIXEL_SIZE * ratio))
+      const columns = Math.ceil(width / cellSize)
+      const rows = Math.ceil(height / cellSize)
+      const cells = Array.from({ length: columns * rows }, (_, cell) => cell)
+      for (let i = cells.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[cells[i], cells[j]] = [cells[j], cells[i]]
+      }
+
+      setDissolveReady(true)
+      const startedAt = performance.now()
+      let erased = 0
+      const animate = (now: number) => {
+        if (cancelled) return
+        const progress = Math.min(1, (now - startedAt) / IMAGE_TRANSITION_MS)
+        const target = Math.floor(progress * cells.length)
+        context.globalCompositeOperation = 'destination-out'
+        while (erased < target) {
+          const cell = cells[erased++]
+          const x = (cell % columns) * cellSize
+          const y = Math.floor(cell / columns) * cellSize
+          context.fillRect(x, y, cellSize, cellSize)
+        }
+        context.globalCompositeOperation = 'source-over'
+
+        if (progress < 1) animationFrame = window.requestAnimationFrame(animate)
+        else {
+          context.clearRect(0, 0, width, height)
+          finishTransition()
+        }
+      }
+      animationFrame = window.requestAnimationFrame(animate)
+    }
+    image.onerror = finishTransition
+    image.src = imageUrl(outgoing.web_path)
+
+    return () => {
+      cancelled = true
+      window.cancelAnimationFrame(animationFrame)
+      image.onload = null
+      image.onerror = null
+    }
+  }, [finishTransition, outgoing])
+
   const advance = useCallback((direction: 1 | -1) => {
     if (sequence.length < 2 || !current) return
     setOutgoing(current)
-    if (transitionTimer.current) clearTimeout(transitionTimer.current)
-    transitionTimer.current = setTimeout(() => {
-      setOutgoing(null)
-      transitionTimer.current = null
-    }, IMAGE_TRANSITION_MS)
+    setDissolveReady(false)
     setIndex(i => (i + direction + sequence.length) % sequence.length)
   }, [current, sequence.length])
-
-  useEffect(() => () => {
-    if (transitionTimer.current) clearTimeout(transitionTimer.current)
-  }, [])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -96,31 +167,13 @@ export default function Gallery({ photographs, logoUrl }: Props) {
         </div>
       )}
       {outgoing && (
-        <div className="gallery-shutter-stage" key={`outgoing-${outgoing.id}`} aria-hidden="true">
-          {Array.from({ length: SHUTTER_SLICE_COUNT }, (_, slice) => {
-            const distanceFromEdge = Math.min(slice, SHUTTER_SLICE_COUNT - 1 - slice)
-            return (
-              <div
-                className="gallery-shutter-slice"
-                key={`${outgoing.id}-${slice}`}
-                style={{
-                  left: `${(slice / SHUTTER_SLICE_COUNT) * 100}%`,
-                  width: `${100 / SHUTTER_SLICE_COUNT + 0.1}%`,
-                  animationDelay: `${distanceFromEdge * 180}ms`,
-                  '--shutter-shift': `${50 - ((slice + 0.5) * 100) / SHUTTER_SLICE_COUNT}vw`,
-                } as CSSProperties}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  className="gallery-shutter-image"
-                  src={imageUrl(outgoing.web_path)}
-                  alt=""
-                  style={{ left: `${(-slice * 100) / SHUTTER_SLICE_COUNT}vw` }}
-                />
-              </div>
-            )
-          })}
-        </div>
+        <>
+          <div className={`gallery-image-stage is-outgoing${dissolveReady ? ' is-dissolving' : ''}`} key={`outgoing-${outgoing.id}`} aria-hidden="true">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className="gallery-image" src={imageUrl(outgoing.web_path)} alt="" />
+          </div>
+          <canvas ref={dissolveCanvas} className={`gallery-pixel-dissolve${dissolveReady ? ' is-ready' : ''}`} aria-hidden="true" />
+        </>
       )}
       <div className="gallery-shade" aria-hidden="true" />
 
