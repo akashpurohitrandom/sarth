@@ -11,7 +11,7 @@ A living museum of photography.
 
 ## Status
 
-The recovered application is preserved on main. Infrastructure work is on setup/supabase-vercel. This is a fresh start: existing stories and photographs will not be migrated. database/bootstrap.sql defines the initial schema and storage policies and was applied once to the new project. `database/migrations/20261105145100_add_photograph_display_metadata.sql` adds the per-photograph title, date, city, and country fields used by the gallery; it has been applied to the new project. The sole admin is registered in admin_users. Originals are private; web images and thumbnails are public.
+The public site is a single-photo viewer over one global photograph collection. The ordering is regenerated for each page load: it starts with a random photo, then favors the remaining photo with the fewest tags in common with the previous one. Admins upload photographs with optional tags, city, country, and year, and can upload the centered site logo. The production Supabase database currently has no photographs. `database/migrations/20261108120000_remove_stories_add_photo_tags_and_logo.sql` prepares the schema change from stories to photographs and adds the logo setting; it has not been applied to production. Originals are private; processed photographs, thumbnails, and brand logos are public.
 
 ## Development
 
@@ -26,7 +26,7 @@ Develop on a branch, verify changes, and prepare a preview for review. Productio
 - Disable public signups in Supabase Auth settings. Database and API access already require the explicitly registered administrator.
 - Do not rerun database/bootstrap.sql against the initialized database. Use reviewed migrations for subsequent changes.
 - SUPABASE_SERVICE_ROLE_KEY is configured as a sensitive Vercel variable for Preview and Production. Both modern sb_secret_ keys and legacy service-role keys are supported; never share or commit them. Public configuration uses the new publishable key, despite the retained ANON_KEY variable name.
-- Verify an authenticated upload, publication, unpublication, and storage deletion through the preview before releasing.
+- Verify an authenticated photograph upload, logo upload, and storage deletion through a preview before releasing.
 - Connect GitHub to Vercel with automatic deployments disabled. Explicit preview deployments are allowed; production requires approval.
 - Review and approve the production release and sarth.art domain cutover.
 

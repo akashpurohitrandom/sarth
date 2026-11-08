@@ -72,7 +72,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             }}
             onMouseEnter={e => (e.currentTarget.style.color = '#F2EDE6')}
             onMouseLeave={e => (e.currentTarget.style.color = '#555')}
-            >Stories</a>
+            >Photographs</a>
             <a href="/admin/new" style={{
               fontSize: '0.72rem', letterSpacing: '0.18em',
               textTransform: 'uppercase',
@@ -86,7 +86,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             }}
             onMouseEnter={e => (e.currentTarget.style.background = '#D44E0A')}
             onMouseLeave={e => (e.currentTarget.style.background = '#E8590C')}
-            >+ New Story</a>
+            >+ Add photographs</a>
             <button
               onClick={async () => {
                 await supabase.auth.signOut()

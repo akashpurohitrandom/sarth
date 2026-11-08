@@ -9,22 +9,19 @@ export async function POST(req: NextRequest) {
     const auth = await authorizeAdmin(req)
     if (auth.response) return auth.response
     const supabase = auth.client!
-    const { story_id, original_path, caption, photograph_title, taken_on, city, country, display_order } = await req.json()
-    if (typeof story_id !== 'string' || !/^[0-9a-f-]{36}$/i.test(story_id) ||
-        typeof original_path !== 'string' || !original_path.startsWith(`${story_id}/`) ||
+    const { photograph_id, original_path, tags, city, country, year } = await req.json()
+    const normalizedTags = Array.isArray(tags)
+      ? Array.from(new Set(tags.map((tag: unknown) => typeof tag === 'string' ? tag.trim().toLowerCase() : '').filter(Boolean)))
+      : null
+    if (typeof photograph_id !== 'string' || !/^[0-9a-f-]{36}$/i.test(photograph_id) ||
+        typeof original_path !== 'string' || !original_path.startsWith(`${photograph_id}/`) ||
         original_path.includes('..') || original_path.split('/').length !== 2 ||
-        !Number.isInteger(display_order) || display_order < 0 ||
-        (caption != null && (typeof caption !== 'string' || caption.length > 2000)) ||
-        (photograph_title != null && (typeof photograph_title !== 'string' || photograph_title.length > 200)) ||
-        (taken_on != null && (typeof taken_on !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(taken_on))) ||
+        !normalizedTags || normalizedTags.length > 20 || normalizedTags.some(tag => tag.length > 50) ||
         (city != null && (typeof city !== 'string' || city.length > 120)) ||
-        (country != null && (typeof country !== 'string' || country.length > 120))) {
+        (country != null && (typeof country !== 'string' || country.length > 120)) ||
+        (year != null && (!Number.isInteger(year) || year < 1000 || year > 9999))) {
       return NextResponse.json({ error: 'Invalid photograph details.' }, { status: 400 })
     }
-    const { data: story, error: storyError } = await supabase.from('stories')
-      .select('id, published').eq('id', story_id).single()
-    if (storyError || !story) return NextResponse.json({ error: 'Story not found.' }, { status: 404 })
-    if (story.published) return NextResponse.json({ error: 'Unpublish the story before changing its photographs.' }, { status: 409 })
 
     const { data: fileData, error: downloadError } = await supabase.storage.from('originals').download(original_path)
     if (downloadError || !fileData) throw new Error('Could not download the original. Please retry.')
@@ -46,19 +43,21 @@ export async function POST(req: NextRequest) {
       .upload(path, thumbBuffer, { contentType: 'image/jpeg', upsert: true })
     if (thumbError) throw new Error('Could not save the thumbnail. Please retry.')
     const { error: dbError } = await supabase.from('photographs').upsert({
-      story_id, storage_path: `originals/${original_path}`,
-      web_path: `photographs/${path}`, thumbnail_path: `thumbnails/${path}`,
-      width: info.width, height: info.height,
-      photograph_title: photograph_title?.trim() || null,
-      taken_on: taken_on || null,
+      id: photograph_id,
+      storage_path: `originals/${original_path}`,
+      web_path: `photographs/${path}`,
+      thumbnail_path: `thumbnails/${path}`,
+      width: info.width,
+      height: info.height,
+      tags: normalizedTags,
       city: city?.trim() || null,
       country: country?.trim() || null,
-      caption: caption || null, display_order,
-    }, { onConflict: 'storage_path' })
+      year: year || null,
+    }, { onConflict: 'id' })
     if (dbError) throw new Error('Could not save photograph details. Please retry.')
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Image processing failed:', error)
-    return NextResponse.json({ error: 'Photograph processing failed. Your draft is saved; please retry.' }, { status: 500 })
+    return NextResponse.json({ error: 'Photograph processing failed. Your upload is saved; please retry.' }, { status: 500 })
   }
 }
