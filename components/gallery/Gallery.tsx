@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GalleryPhoto } from '@/lib/supabase'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const IMAGE_TRANSITION_MS = 1800
 
 function imageUrl(path: string) {
   return path.startsWith('http') ? path : `${SUPABASE_URL}/storage/v1/object/public/${path}`
@@ -14,14 +15,26 @@ type Props = { photographs: GalleryPhoto[]; logoUrl: string | null }
 export default function Gallery({ photographs, logoUrl }: Props) {
   const [sequence] = useState(photographs)
   const [index, setIndex] = useState(0)
+  const [outgoing, setOutgoing] = useState<GalleryPhoto | null>(null)
   const wheelLock = useRef(false)
   const touchStart = useRef<number | null>(null)
+  const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const current = sequence[index] ?? null
 
   const advance = useCallback((direction: 1 | -1) => {
-    if (sequence.length < 2) return
+    if (sequence.length < 2 || !current) return
+    setOutgoing(current)
+    if (transitionTimer.current) clearTimeout(transitionTimer.current)
+    transitionTimer.current = setTimeout(() => {
+      setOutgoing(null)
+      transitionTimer.current = null
+    }, IMAGE_TRANSITION_MS)
     setIndex(i => (i + direction + sequence.length) % sequence.length)
-  }, [sequence.length])
+  }, [current, sequence.length])
+
+  useEffect(() => () => {
+    if (transitionTimer.current) clearTimeout(transitionTimer.current)
+  }, [])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -62,6 +75,12 @@ export default function Gallery({ photographs, logoUrl }: Props) {
         if (Math.abs(delta) > 40) advance(delta > 0 ? 1 : -1)
         touchStart.current = null
       }}>
+      {outgoing && (
+        <div className="gallery-image-stage is-outgoing" key={`outgoing-${outgoing.id}`} aria-hidden="true">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="gallery-image" src={imageUrl(outgoing.web_path)} alt="" />
+        </div>
+      )}
       {current && (
         <div className="gallery-image-stage" key={current.id}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
