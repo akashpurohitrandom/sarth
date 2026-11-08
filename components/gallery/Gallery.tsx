@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GalleryPhoto } from '@/lib/supabase'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const IMAGE_TRANSITION_MS = 1800
-const PIXEL_SIZE = 14
+const IMAGE_TRANSITION_MS = 1200
+const PIXEL_SIZE = 8
 
 function imageUrl(path: string) {
   return path.startsWith('http') ? path : `${SUPABASE_URL}/storage/v1/object/public/${path}`
@@ -195,7 +195,6 @@ export default function Gallery({ photographs, logoUrl }: Props) {
       {current && sequence.length > 1 && (
         <div className="gallery-controls" aria-label="Photograph navigation">
           <button onClick={() => advance(-1)} aria-label="Previous photograph">↑</button>
-          <span>{String(index + 1).padStart(2, '0')} / {String(sequence.length).padStart(2, '0')}</span>
           <button onClick={() => advance(1)} aria-label="Next photograph">↓</button>
         </div>
       )}
