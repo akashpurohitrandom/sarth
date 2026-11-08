@@ -5,6 +5,7 @@ import type { GalleryPhoto } from '@/lib/supabase'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const IMAGE_TRANSITION_MS = 1800
+const SHUTTER_SLICE_COUNT = 12
 
 function imageUrl(path: string) {
   return path.startsWith('http') ? path : `${SUPABASE_URL}/storage/v1/object/public/${path}`
@@ -75,16 +76,29 @@ export default function Gallery({ photographs, logoUrl }: Props) {
         if (Math.abs(delta) > 40) advance(delta > 0 ? 1 : -1)
         touchStart.current = null
       }}>
-      {outgoing && (
-        <div className="gallery-image-stage is-outgoing" key={`outgoing-${outgoing.id}`} aria-hidden="true">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="gallery-image" src={imageUrl(outgoing.web_path)} alt="" />
-        </div>
-      )}
       {current && (
         <div className="gallery-image-stage" key={current.id}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img className="gallery-image" src={imageUrl(current.web_path)} alt="" fetchPriority="high" />
+        </div>
+      )}
+      {outgoing && (
+        <div className="gallery-shutter-stage" key={`outgoing-${outgoing.id}`} aria-hidden="true">
+          {Array.from({ length: SHUTTER_SLICE_COUNT }, (_, slice) => {
+            const distanceFromEdge = Math.min(slice, SHUTTER_SLICE_COUNT - 1 - slice)
+            return (
+              <div
+                className={`gallery-shutter-slice ${slice % 2 === 0 ? 'is-up' : 'is-down'}`}
+                key={`${outgoing.id}-${slice}`}
+                style={{
+                  left: `${(slice / SHUTTER_SLICE_COUNT) * 100}%`,
+                  width: `${100 / SHUTTER_SLICE_COUNT + 0.1}%`,
+                  backgroundImage: `url("${imageUrl(outgoing.web_path)}")`,
+                  animationDelay: `${distanceFromEdge * 180}ms`,
+                }}
+              />
+            )
+          })}
         </div>
       )}
       <div className="gallery-shade" aria-hidden="true" />
