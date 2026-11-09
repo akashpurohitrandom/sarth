@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
         typeof original_path !== 'string' || !original_path.startsWith(`${photograph_id}/`) ||
         original_path.includes('..') || original_path.split('/').length !== 2 ||
         !normalizedTags || normalizedTags.length > 20 || normalizedTags.some(tag => tag.length > 50) ||
-        !['desktop', 'mobile'].includes(display_target) ||
+        typeof display_target !== 'string' || !['desktop', 'mobile'].includes(display_target) ||
         (city != null && (typeof city !== 'string' || city.length > 120)) ||
         (country != null && (typeof country !== 'string' || country.length > 120)) ||
         (year != null && (!Number.isInteger(year) || year < 1000 || year > 9999))) {
