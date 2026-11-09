@@ -8,6 +8,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const IMAGE_TRANSITION_MS = 1000
 const PIXEL_SIZE = 8
 const MOBILE_QUERY = '(max-width: 700px)'
+const EMPTY_SEQUENCE: GalleryPhoto[] = []
 
 function imageUrl(path: string) {
   return path.startsWith('http') ? path : `${SUPABASE_URL}/storage/v1/object/public/${path}`
@@ -29,7 +30,7 @@ export default function Gallery({ logoUrl }: Props) {
   const touchStart = useRef<number | null>(null)
   const dissolveCanvas = useRef<HTMLCanvasElement>(null)
   const displayTarget = isMobile ? 'mobile' : 'desktop'
-  const sequence = isMobile !== null && sequenceTarget === displayTarget ? photographs : []
+  const sequence = isMobile !== null && sequenceTarget === displayTarget ? photographs : EMPTY_SEQUENCE
   const current = sequence[index] ?? null
 
   useEffect(() => {
