@@ -22,11 +22,13 @@ create table public.photographs (
   city text check (city is null or length(city) <= 120),
   country text check (country is null or length(country) <= 120),
   year integer check (year is null or year between 1000 and 9999),
+  display_target text not null default 'desktop' check (display_target in ('desktop', 'mobile')),
   display_order integer not null default 0,
   created_at timestamptz not null default now()
 );
 create index photographs_created_idx on public.photographs(created_at desc);
 create index photographs_tags_idx on public.photographs using gin(tags);
+create index photographs_display_target_created_idx on public.photographs(display_target, created_at desc);
 
 create table public.site_settings (
   singleton boolean primary key default true check (singleton),
