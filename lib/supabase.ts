@@ -16,6 +16,7 @@ export type Photograph = {
   city: string | null
   country: string | null
   year: number | null
+  display_target: 'desktop' | 'mobile'
   display_order: number
   created_at: string
 }
