@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     const auth = await authorizeAdmin(req)
     if (auth.response) return auth.response
     const supabase = auth.client!
-    const { photograph_id, original_path, tags, city, country, year } = await req.json()
+    const { photograph_id, original_path, tags, city, country, year, display_target } = await req.json()
     const normalizedTags = Array.isArray(tags)
       ? Array.from(new Set(tags.map((tag: unknown) => typeof tag === 'string' ? tag.trim().toLowerCase() : '').filter(Boolean)))
       : null
@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
         typeof original_path !== 'string' || !original_path.startsWith(`${photograph_id}/`) ||
         original_path.includes('..') || original_path.split('/').length !== 2 ||
         !normalizedTags || normalizedTags.length > 20 || normalizedTags.some(tag => tag.length > 50) ||
+        !['desktop', 'mobile'].includes(display_target) ||
         (city != null && (typeof city !== 'string' || city.length > 120)) ||
         (country != null && (typeof country !== 'string' || country.length > 120)) ||
         (year != null && (!Number.isInteger(year) || year < 1000 || year > 9999))) {
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
       city: city?.trim() || null,
       country: country?.trim() || null,
       year: year || null,
+      display_target,
     }, { onConflict: 'id' })
     if (dbError) throw new Error('Could not save photograph details. Please retry.')
     return NextResponse.json({ success: true })
