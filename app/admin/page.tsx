@@ -64,7 +64,7 @@ export default function AdminDashboard() {
     <main style={{ padding: '3rem 2.5rem', maxWidth: 1050 }}>
       <div style={{ marginBottom: '2.5rem' }}>
         <h1 style={{ fontFamily: 'DM Serif Display, Georgia, serif', fontStyle: 'italic', fontSize: '2.2rem', marginBottom: '.5rem' }}>Photographs</h1>
-        <p style={{ fontSize: '.8rem', color: '#777' }}>{photographs.length} in the collection</p>
+        <p style={{ fontSize: '.8rem', color: '#777' }}>{photographs.filter(photo => photo.display_target === 'desktop').length} desktop · {photographs.filter(photo => photo.display_target === 'mobile').length} mobile</p>
       </div>
 
       <section style={{ padding: '1.25rem', border: '1px solid rgba(255,255,255,.09)', borderRadius: 6, marginBottom: '2.5rem' }}>
@@ -88,6 +88,7 @@ export default function AdminDashboard() {
       </section> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '1rem' }}>
         {photographs.map(photo => <article key={photo.id} style={{ position: 'relative', border: '1px solid rgba(255,255,255,.08)', borderRadius: 5, overflow: 'hidden', background: '#191919' }}>
           {photo.web_path && <img src={`${SUPABASE_URL}/storage/v1/object/public/${photo.web_path}`} alt="" style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover' }} />}
+          <span style={{ position: 'absolute', top: 8, left: 8, padding: '.25rem .4rem', borderRadius: 3, background: 'rgba(0,0,0,.72)', color: '#fff', fontSize: '.6rem', letterSpacing: '.06em', textTransform: 'uppercase' }}>{photo.display_target}</span>
           <div style={{ padding: '.7rem', minHeight: 64 }}>
             <p style={{ fontSize: '.72rem', color: '#eee' }}>{[photo.city, photo.country, photo.year].filter(Boolean).join(', ') || 'No location details'}</p>
             <p style={{ marginTop: '.35rem', fontSize: '.65rem', color: '#888' }}>{photo.tags?.join(', ') || 'No tags'}</p>
