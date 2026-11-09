@@ -1,20 +1,26 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { GalleryPhoto } from '@/lib/supabase'
+import { supabase, type GalleryPhoto } from '@/lib/supabase'
+import { randomizeByTagDistance } from '@/lib/tag-order'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const IMAGE_TRANSITION_MS = 1000
 const PIXEL_SIZE = 8
+const MOBILE_QUERY = '(max-width: 700px)'
 
 function imageUrl(path: string) {
   return path.startsWith('http') ? path : `${SUPABASE_URL}/storage/v1/object/public/${path}`
 }
 
-type Props = { photographs: GalleryPhoto[]; logoUrl: string | null }
+type Props = { logoUrl: string | null }
 
-export default function Gallery({ photographs, logoUrl }: Props) {
-  const [sequence] = useState(photographs)
+export default function Gallery({ logoUrl }: Props) {
+  const [photographs, setPhotographs] = useState<GalleryPhoto[]>([])
+  const [sequenceTarget, setSequenceTarget] = useState<'desktop' | 'mobile' | null>(null)
+  const [isMobile, setIsMobile] = useState<boolean | null>(null)
+  const [loadingPhotos, setLoadingPhotos] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [index, setIndex] = useState(0)
   const [outgoing, setOutgoing] = useState<GalleryPhoto | null>(null)
   const [dissolveReady, setDissolveReady] = useState(false)
@@ -22,7 +28,17 @@ export default function Gallery({ photographs, logoUrl }: Props) {
   const wheelLock = useRef(false)
   const touchStart = useRef<number | null>(null)
   const dissolveCanvas = useRef<HTMLCanvasElement>(null)
+  const displayTarget = isMobile ? 'mobile' : 'desktop'
+  const sequence = isMobile !== null && sequenceTarget === displayTarget ? photographs : []
   const current = sequence[index] ?? null
+
+  useEffect(() => {
+    const query = window.matchMedia(MOBILE_QUERY)
+    const syncViewport = () => setIsMobile(query.matches)
+    syncViewport()
+    query.addEventListener('change', syncViewport)
+    return () => query.removeEventListener('change', syncViewport)
+  }, [])
 
   useEffect(() => {
     if (sequence.length < 2) return
@@ -40,6 +56,41 @@ export default function Gallery({ photographs, logoUrl }: Props) {
     setOutgoing(null)
     setDissolveReady(false)
   }, [])
+
+  useEffect(() => {
+    if (isMobile === null) return
+    let active = true
+    setIndex(0)
+    setOutgoing(null)
+    setDissolveReady(false)
+    setIncomingReady(false)
+    setPhotographs([])
+    setSequenceTarget(null)
+    setLoadingPhotos(true)
+    setLoadError(false)
+
+    const loadPhotographs = async () => {
+      const { data, error } = await supabase.from('photographs')
+        .select('id, web_path, tags, city, country, year')
+        .eq('display_target', isMobile ? 'mobile' : 'desktop')
+        .not('web_path', 'is', null)
+        .order('created_at', { ascending: true })
+
+      if (!active) return
+      if (error) {
+        setLoadError(true)
+        setPhotographs([])
+      } else {
+        const available = (data ?? []).filter(photo => photo.web_path) as GalleryPhoto[]
+        setPhotographs(randomizeByTagDistance(available))
+        setSequenceTarget(isMobile ? 'mobile' : 'desktop')
+      }
+      setLoadingPhotos(false)
+    }
+
+    void loadPhotographs()
+    return () => { active = false }
+  }, [isMobile])
 
   useEffect(() => {
     if (!outgoing) return
@@ -177,7 +228,7 @@ export default function Gallery({ photographs, logoUrl }: Props) {
             onLoad={() => setIncomingReady(true)} onError={() => setIncomingReady(true)} />
         </div>
       )}
-      {outgoing && (
+      {outgoing && sequenceTarget === displayTarget && (
         <>
           <div className={`gallery-image-stage is-outgoing${dissolveReady ? ' is-dissolving' : ''}`} key={`outgoing-${outgoing.id}`} aria-hidden="true">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -197,9 +248,15 @@ export default function Gallery({ photographs, logoUrl }: Props) {
           {location && <p className="gallery-photo-meta">{location}</p>}
         </div>
       ) : (
-        <div className="gallery-empty">
-          <p className="gallery-empty-title">Sārth</p>
-          <p>Photographs will find their way here.</p>
+        <div className="gallery-empty" aria-live="polite">
+          {isMobile === null || loadingPhotos
+            ? <p>Loading photographs…</p>
+            : loadError
+              ? <p>Photographs could not be loaded.</p>
+              : <>
+                  <p className="gallery-empty-title">Sārth</p>
+                  <p>{isMobile ? 'Mobile photographs will find their way here.' : 'Photographs will find their way here.'}</p>
+                </>}
         </div>
       )}
 
