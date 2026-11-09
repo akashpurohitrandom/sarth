@@ -128,6 +128,15 @@ export default function NewPhotographsPage() {
                 onDragLeave={() => setDragging(current => current === target ? null : current)}
                 onDrop={event => { event.preventDefault(); setDragging(null); addFiles(event.dataTransfer.files, target) }}
                 onClick={event => { if (!(event.target instanceof HTMLInputElement)) document.getElementById(inputId)?.click() }}
+                onKeyDown={event => {
+                  if (event.target === event.currentTarget && ['Enter', ' '].includes(event.key)) {
+                    event.preventDefault()
+                    document.getElementById(inputId)?.click()
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label={`Upload ${target} photographs`}
                 style={{ border: `1px dashed ${dragging === target ? '#E8590C' : 'rgba(255,255,255,.18)'}`, borderRadius: 6, padding: '2rem 1rem', textAlign: 'center', cursor: 'pointer', marginBottom: '1rem' }}>
                 <p style={{ fontSize: '.82rem', marginBottom: '.4rem' }}>Drop {target} photographs here or click to browse</p>
                 <p style={{ fontSize: '.7rem', color: '#666' }}>JPEG, PNG, WebP · up to 50 MB each</p>
