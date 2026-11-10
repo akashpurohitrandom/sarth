@@ -95,7 +95,7 @@ export default function NewPhotographsPage() {
       return result
     }
 
-    const draftFiles = files.filter(file => file.status !== 'done')
+    const draftFiles = files
     return {
       tags: unique([
         ...draftFiles.flatMap(file => file.tags.split(',').map(tag => tag.trim()).filter(Boolean)),
