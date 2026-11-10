@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase, type GalleryPhoto } from '@/lib/supabase'
-import { randomizeByTagDistance } from '@/lib/tag-order'
+import { randomizeByMetadataDiversity } from '@/lib/tag-order'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const IMAGE_TRANSITION_MS = 1000
