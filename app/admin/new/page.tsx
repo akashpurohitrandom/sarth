@@ -81,7 +81,7 @@ export default function NewPhotographsPage() {
   }, [])
 
   const suggestions = useMemo(() => {
-    const unique = (values: Array<string | number | null | undefined>) => {
+    const unique = (values: Array<string | number | null | undefined>, limit = suggestionLimit) => {
       const seen = new Set<string>()
       const result: string[] = []
       for (const raw of values) {
@@ -90,20 +90,28 @@ export default function NewPhotographsPage() {
         if (!value || seen.has(key)) continue
         seen.add(key)
         result.push(value)
-        if (result.length === suggestionLimit) break
+        if (result.length === limit) break
+      }
+      return result
+    }
+    const combine = (current: string[], saved: string[]) => {
+      const result = [...current]
+      const seen = new Set(current.map(value => value.toLocaleLowerCase()))
+      for (const value of saved) {
+        const key = value.toLocaleLowerCase()
+        if (seen.has(key)) continue
+        seen.add(key)
+        result.push(value)
       }
       return result
     }
 
     const draftFiles = files
     return {
-      tags: unique([
-        ...draftFiles.flatMap(file => file.tags.split(',').map(tag => tag.trim()).filter(Boolean)),
-        ...savedSuggestions.tags,
-      ]),
-      cities: unique([...draftFiles.map(file => file.city), ...savedSuggestions.cities]),
-      countries: unique([...draftFiles.map(file => file.country), ...savedSuggestions.countries]),
-      years: unique([...draftFiles.map(file => file.year), ...savedSuggestions.years]),
+      tags: combine(unique(draftFiles.flatMap(file => file.tags.split(',').map(tag => tag.trim()).filter(Boolean))), savedSuggestions.tags),
+      cities: combine(unique(draftFiles.map(file => file.city)), savedSuggestions.cities),
+      countries: combine(unique(draftFiles.map(file => file.country)), savedSuggestions.countries),
+      years: combine(unique(draftFiles.map(file => file.year)), savedSuggestions.years),
     }
   }, [files, savedSuggestions])
 
