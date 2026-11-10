@@ -83,7 +83,7 @@ export default function Gallery({ logoUrl }: Props) {
         setPhotographs([])
       } else {
         const available = (data ?? []).filter(photo => photo.web_path) as GalleryPhoto[]
-        setPhotographs(randomizeByTagDistance(available))
+        setPhotographs(randomizeByMetadataDiversity(available))
         setSequenceTarget(isMobile ? 'mobile' : 'desktop')
       }
       setLoadingPhotos(false)
