@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { adminRequest } from '@/lib/admin-request'
@@ -45,7 +45,7 @@ export default function NewPhotographsPage() {
   const [files, setFiles] = useState<UploadFile[]>([])
   const [dragging, setDragging] = useState<DisplayTarget | null>(null)
   const [savingTarget, setSavingTarget] = useState<DisplayTarget | null>(null)
-  const [suggestions, setSuggestions] = useState<Suggestions>(emptySuggestions)
+  const [savedSuggestions, setSavedSuggestions] = useState<Suggestions>(emptySuggestions)
   const [failedUploads, setFailedUploads] = useState<FailedUpload[]>([])
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -65,7 +65,7 @@ export default function NewPhotographsPage() {
           Array.from(new Set(values.map(value => String(value ?? '').trim()).filter(Boolean)))
             .slice(0, suggestionLimit)
 
-        setSuggestions({
+        setSavedSuggestions({
           tags: unique(data.flatMap(photo => photo.tags ?? [])),
           cities: unique(data.map(photo => photo.city)),
           countries: unique(data.map(photo => photo.country)),
@@ -79,6 +79,41 @@ export default function NewPhotographsPage() {
     void loadSuggestions()
     return () => { active = false }
   }, [])
+
+  const suggestions = useMemo(() => {
+    const unique = (values: Array<string | number | null | undefined>, limit = suggestionLimit) => {
+      const seen = new Set<string>()
+      const result: string[] = []
+      for (const raw of values) {
+        const value = String(raw ?? '').trim()
+        const key = value.toLocaleLowerCase()
+        if (!value || seen.has(key)) continue
+        seen.add(key)
+        result.push(value)
+        if (result.length === limit) break
+      }
+      return result
+    }
+    const combine = (current: string[], saved: string[]) => {
+      const result = [...current]
+      const seen = new Set(current.map(value => value.toLocaleLowerCase()))
+      for (const value of saved) {
+        const key = value.toLocaleLowerCase()
+        if (seen.has(key)) continue
+        seen.add(key)
+        result.push(value)
+      }
+      return result
+    }
+
+    const draftFiles = files
+    return {
+      tags: combine(unique(draftFiles.flatMap(file => file.tags.split(',').map(tag => tag.trim()).filter(Boolean))), savedSuggestions.tags),
+      cities: combine(unique(draftFiles.map(file => file.city)), savedSuggestions.cities),
+      countries: combine(unique(draftFiles.map(file => file.country)), savedSuggestions.countries),
+      years: combine(unique(draftFiles.map(file => file.year)), savedSuggestions.years),
+    }
+  }, [files, savedSuggestions])
 
   const addFiles = useCallback((incoming: FileList | File[], target: DisplayTarget) => {
     if (savingTarget) return
