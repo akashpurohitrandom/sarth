@@ -33,7 +33,7 @@ function similarity(a: PhotoProfile, b: PhotoProfile) {
 
   if (a.tags.size || b.tags.size) {
     let shared = 0
-    for (const tag of a.tags) if (b.tags.has(tag)) shared++
+    a.tags.forEach(tag => { if (b.tags.has(tag)) shared++ })
     const union = a.tags.size + b.tags.size - shared
     weightedScore += metadataWeights.tags * (union ? shared / union : 0)
     comparableWeight += metadataWeights.tags
