@@ -38,7 +38,6 @@ const panels: { target: DisplayTarget; title: string; description: string }[] = 
 ]
 
 const emptySuggestions: Suggestions = { tags: [], cities: [], countries: [], years: [] }
-const suggestionLimit = 8
 
 export default function NewPhotographsPage() {
   const router = useRouter()
@@ -49,31 +48,43 @@ export default function NewPhotographsPage() {
   const [failedUploads, setFailedUploads] = useState<FailedUpload[]>([])
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [activeSuggestionField, setActiveSuggestionField] = useState<{ id: string; field: MetadataField } | null>(null)
 
   useEffect(() => {
     let active = true
     const loadSuggestions = async () => {
-      try {
+      const accumulated: Suggestions = { tags: [], cities: [], countries: [], years: [] }
+      const seen = {
+        tags: new Set<string>(), cities: new Set<string>(),
+        countries: new Set<string>(), years: new Set<string>(),
+      }
+      const add = (field: keyof Suggestions, value: string | number | null | undefined) => {
+        const cleaned = String(value ?? '').trim()
+        const key = cleaned.toLocaleLowerCase()
+        if (!cleaned || seen[field].has(key)) return
+        seen[field].add(key)
+        accumulated[field].push(cleaned)
+      }
+
+      // Page through saved metadata so the suggestion index keeps the full collection.
+      for (let offset = 0; ; offset += 500) {
         const { data, error: queryError } = await supabase.from('photographs')
           .select('tags, city, country, year')
           .not('web_path', 'is', null)
           .order('created_at', { ascending: false })
-          .limit(500)
+          .range(offset, offset + 499)
 
-        if (!active || queryError || !data) return
-        const unique = (values: Array<string | number | null | undefined>) =>
-          Array.from(new Set(values.map(value => String(value ?? '').trim()).filter(Boolean)))
-            .slice(0, suggestionLimit)
-
-        setSavedSuggestions({
-          tags: unique(data.flatMap(photo => photo.tags ?? [])),
-          cities: unique(data.map(photo => photo.city)),
-          countries: unique(data.map(photo => photo.country)),
-          years: unique(data.map(photo => photo.year)),
-        })
-      } catch {
-        // Suggestions are optional; uploads remain available if they cannot be loaded.
+        if (queryError || !data) break
+        for (const photo of data) {
+          for (const tag of photo.tags ?? []) add('tags', tag)
+          add('cities', photo.city)
+          add('countries', photo.country)
+          add('years', photo.year)
+        }
+        if (data.length < 500) break
       }
+
+      if (active) setSavedSuggestions(accumulated)
     }
 
     void loadSuggestions()
@@ -81,7 +92,7 @@ export default function NewPhotographsPage() {
   }, [])
 
   const suggestions = useMemo(() => {
-    const unique = (values: Array<string | number | null | undefined>, limit = suggestionLimit) => {
+    const unique = (values: Array<string | number | null | undefined>) => {
       const seen = new Set<string>()
       const result: string[] = []
       for (const raw of values) {
@@ -90,7 +101,6 @@ export default function NewPhotographsPage() {
         if (!value || seen.has(key)) continue
         seen.add(key)
         result.push(value)
-        if (result.length === limit) break
       }
       return result
     }
@@ -150,12 +160,72 @@ export default function NewPhotographsPage() {
     setFiles(previous => previous.map(file => {
       if (file.id !== id) return file
       if (field === 'tags') {
-        const tags = file.tags.split(',').map(tag => tag.trim()).filter(Boolean)
+        const parts = file.tags.split(',')
+        parts.pop()
+        const tags = parts.map(tag => tag.trim()).filter(Boolean)
         if (!tags.some(tag => tag.toLowerCase() === value.toLowerCase())) tags.push(value)
         return { ...file, tags: tags.join(', ') }
       }
       return { ...file, [field]: value }
     }))
+  }
+
+  const suggestionsFor = (file: UploadFile, field: MetadataField) => {
+    const values = {
+      tags: suggestions.tags,
+      city: suggestions.cities,
+      country: suggestions.countries,
+      year: suggestions.years,
+    }[field]
+    const currentValue = field === 'tags' ? file.tags.split(',').at(-1)?.trim() ?? '' : file[field].trim()
+    const selectedTags = field === 'tags'
+      ? new Set(file.tags.split(',').map(tag => tag.trim().toLocaleLowerCase()).filter(Boolean))
+      : null
+    return values
+      .filter(value => !selectedTags?.has(value.toLocaleLowerCase()))
+      .filter(value => field === 'tags' || value.toLocaleLowerCase() !== currentValue.toLocaleLowerCase())
+      .filter(value => !currentValue || value.toLocaleLowerCase().includes(currentValue.toLocaleLowerCase()))
+  }
+
+  const renderInput = (
+    file: UploadFile,
+    index: number,
+    target: DisplayTarget,
+    field: MetadataField,
+    placeholder: string,
+    style?: React.CSSProperties,
+  ) => {
+    const focused = activeSuggestionField?.id === file.id && activeSuggestionField.field === field
+    const options = focused ? suggestionsFor(file, field) : []
+    return (
+      <div key={field} style={{ position: 'relative', minWidth: 0, ...(style ?? {}) }}>
+        <input
+          placeholder={placeholder}
+          aria-label={target + ' photo ' + (index + 1) + ' ' + field}
+          aria-autocomplete="list"
+          aria-expanded={options.length > 0}
+          value={file[field]}
+          disabled={savingTarget !== null || file.status === 'done'}
+          onFocus={() => setActiveSuggestionField({ id: file.id, field })}
+          onBlur={() => setActiveSuggestionField(current => current?.id === file.id && current.field === field ? null : current)}
+          onChange={event => update(file.id, field, field === 'year' ? event.target.value.replace(/\D/g, '') : event.target.value)}
+          style={inputStyle}
+        />
+        {options.length > 0 && <div role="listbox" aria-label={field + ' suggestions'} style={{
+          position: 'absolute', zIndex: 30, top: 'calc(100% + 4px)', left: 0,
+          width: 'max(100%, 190px)', maxWidth: 'min(320px, 80vw)', maxHeight: 160,
+          overflowY: 'auto', padding: '.35rem', border: '1px solid rgba(255,255,255,.16)',
+          borderRadius: 5, background: '#101010', boxShadow: '0 12px 28px rgba(0,0,0,.55)',
+        }}>
+          {options.map(option => <button key={option} type="button" role="option" aria-selected={false}
+            onMouseDown={event => event.preventDefault()}
+            onClick={() => applySuggestion(file.id, field, option)}
+            style={{ display: 'block', width: '100%', padding: '.4rem .5rem', borderRadius: 3, color: '#ddd', textAlign: 'left', fontSize: '.72rem', background: 'transparent', cursor: 'pointer' }}>
+            {option}
+          </button>)}
+        </div>}
+      </div>
+    )
   }
 
   const upload = async (target: DisplayTarget) => {
@@ -214,13 +284,6 @@ export default function NewPhotographsPage() {
     }
   }
 
-  const suggestionGroups: { field: MetadataField; label: string; values: string[] }[] = [
-    { field: 'tags', label: 'Tags', values: suggestions.tags },
-    { field: 'city', label: 'Cities', values: suggestions.cities },
-    { field: 'country', label: 'Countries', values: suggestions.countries },
-    { field: 'year', label: 'Years', values: suggestions.years },
-  ]
-
   return (
     <main style={{ padding: '3rem 2.5rem', maxWidth: 1120 }}>
       <div style={{ marginBottom: '2rem' }}>
@@ -259,35 +322,15 @@ export default function NewPhotographsPage() {
               </div>
 
               {targetFiles.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '.75rem' }}>
-                {targetFiles.map((file, index) => <article key={file.id} style={{ position: 'relative', border: '1px solid rgba(255,255,255,.09)', borderRadius: 6, overflow: 'hidden', background: '#1a1a1a' }}>
+                {targetFiles.map((file, index) => <article key={file.id} style={{ position: 'relative', border: '1px solid rgba(255,255,255,.09)', borderRadius: 6, overflow: 'visible', zIndex: activeSuggestionField?.id === file.id ? 10 : 0, background: '#1a1a1a' }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={file.preview} alt={target + ' upload preview ' + (index + 1)} style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover' }} />
+                  <img src={file.preview} alt={target + ' upload preview ' + (index + 1)} style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', borderRadius: '5px 5px 0 0' }} />
                   <div style={{ padding: '.7rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.45rem' }}>
-                    <input placeholder="Tags, separated by commas" aria-label={title + ' photo ' + (index + 1) + ' tags'} value={file.tags} disabled={savingTarget !== null || file.status === 'done'} onChange={event => update(file.id, 'tags', event.target.value)} style={{ ...inputStyle, gridColumn: '1 / -1' }} />
-                    <input placeholder="City" aria-label={title + ' photo ' + (index + 1) + ' city'} value={file.city} disabled={savingTarget !== null || file.status === 'done'} onChange={event => update(file.id, 'city', event.target.value)} style={inputStyle} />
-                    <input placeholder="Country" aria-label={title + ' photo ' + (index + 1) + ' country'} value={file.country} disabled={savingTarget !== null || file.status === 'done'} onChange={event => update(file.id, 'country', event.target.value)} style={inputStyle} />
-                    <input placeholder="Year" aria-label={title + ' photo ' + (index + 1) + ' year'} inputMode="numeric" maxLength={4} value={file.year} disabled={savingTarget !== null || file.status === 'done'} onChange={event => update(file.id, 'year', event.target.value.replace(/\D/g, ''))} style={{ ...inputStyle, gridColumn: '1 / -1' }} />
+                    {renderInput(file, index, target, 'tags', 'Tags, separated by commas', { gridColumn: '1 / -1' })}
+                    {renderInput(file, index, target, 'city', 'City')}
+                    {renderInput(file, index, target, 'country', 'Country')}
+                    {renderInput(file, index, target, 'year', 'Year', { gridColumn: '1 / -1' })}
                   </div>
-
-                  {suggestionGroups.some(group => group.values.length > 0) && <div style={{ padding: '0 .7rem .8rem', display: 'grid', gap: '.55rem' }}>
-                    {suggestionGroups.map(({ field, label, values }) => values.length > 0 && <div key={field}>
-                      <p style={{ fontSize: '.62rem', color: '#888', marginBottom: '.3rem' }}>{label} suggestions</p>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
-                        {values.map(value => {
-                          const selected = field === 'tags'
-                            ? file.tags.split(',').some(tag => tag.trim().toLowerCase() === value.toLowerCase())
-                            : file[field].trim().toLowerCase() === value.toLowerCase()
-                          return <button key={value} type="button" disabled={savingTarget !== null || file.status === 'done' || selected}
-                            aria-label={'Use ' + value + ' as ' + field}
-                            aria-pressed={selected}
-                            onClick={() => applySuggestion(file.id, field, value)}
-                            style={{ padding: '.22rem .42rem', border: '1px solid rgba(255,255,255,.14)', borderRadius: 99, color: selected ? '#E8590C' : '#ccc', background: selected ? 'rgba(232,89,12,.12)' : 'transparent', fontSize: '.62rem', cursor: selected ? 'default' : 'pointer', opacity: savingTarget !== null || file.status === 'done' ? .5 : 1 }}>
-                            {value}
-                          </button>
-                        })}
-                      </div>
-                    </div>)}
-                  </div>}
 
                   {!savingTarget && file.status !== 'done' && <button type="button" onClick={() => setFiles(previous => previous.filter(item => item.id !== file.id))} aria-label={'Remove ' + target + ' photo ' + (index + 1)} style={{ position: 'absolute', top: 8, right: 8, width: 26, height: 26, borderRadius: '50%', color: '#fff', background: 'rgba(0,0,0,.65)', cursor: 'pointer' }}>×</button>}
                   <span style={{ position: 'absolute', top: 9, left: 10, fontSize: '.68rem', color: file.status === 'error' ? '#ff7b64' : '#fff', textShadow: '0 1px 4px #000' }}>{file.status === 'done' ? 'Saved' : file.status === 'uploading' ? 'Uploading…' : file.status === 'error' ? 'Error' : ''}</span>
