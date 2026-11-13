@@ -4,11 +4,15 @@ import '../styles/globals.css'
 
 export const metadata: Metadata = {
   title: 'Sārth',
-  description: 'Photography by Akash Purohit',
+  description: 'Just another corner on the street.',
   openGraph: {
     title: 'Sārth',
-    description: 'Photography by Akash Purohit',
+    description: 'Just another corner on the street.',
     type: 'website',
+  },
+  twitter: {
+    title: 'Sārth',
+    description: 'Just another corner on the street.',
   },
 }
 
