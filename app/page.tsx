@@ -12,10 +12,13 @@ export default async function HomePage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { auth: { persistSession: false, autoRefreshToken: false } },
   )
-  const { data: settings } = await supabase.from('site_settings')
+  const settingsResult = await supabase.from('site_settings')
     .select('logo_path, logo_scale, logo_opacity').eq('singleton', true).maybeSingle()
-  const logoScale = Math.min(200, Math.max(50, Number(settings?.logo_scale) || 100))
-  const logoOpacity = Math.min(100, Math.max(0, Number(settings?.logo_opacity) || 100))
+  const settings = settingsResult.error
+    ? (await supabase.from('site_settings').select('logo_path').eq('singleton', true).maybeSingle()).data
+    : settingsResult.data
+  const logoScale = Math.min(200, Math.max(50, Number(settings?.logo_scale ?? 100)))
+  const logoOpacity = Math.min(100, Math.max(0, Number(settings?.logo_opacity ?? 100)))
   const logoUrl = settings?.logo_path
     ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${settings.logo_path}`
     : null
