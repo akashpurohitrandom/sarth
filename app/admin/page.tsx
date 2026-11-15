@@ -17,6 +17,9 @@ const editInputStyle: React.CSSProperties = {
 export default function AdminDashboard() {
   const [photographs, setPhotographs] = useState<Photograph[]>([])
   const [logoPath, setLogoPath] = useState<string | null>(null)
+  const [logoScale, setLogoScale] = useState(100)
+  const [logoOpacity, setLogoOpacity] = useState(100)
+  const [logoSettingsBusy, setLogoSettingsBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [logoBusy, setLogoBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -29,10 +32,12 @@ export default function AdminDashboard() {
   const load = useCallback(async () => {
     const [{ data: photos }, { data: settings }] = await Promise.all([
       supabase.from('photographs').select('*').order('created_at', { ascending: false }).limit(100),
-      supabase.from('site_settings').select('logo_path').eq('singleton', true).maybeSingle(),
+      supabase.from('site_settings').select('logo_path, logo_scale, logo_opacity').eq('singleton', true).maybeSingle(),
     ])
     setPhotographs(photos ?? [])
     setLogoPath(settings?.logo_path ?? null)
+    setLogoScale(settings?.logo_scale ?? 100)
+    setLogoOpacity(settings?.logo_opacity ?? 100)
     setLoading(false)
   }, [])
 
@@ -104,6 +109,25 @@ export default function AdminDashboard() {
     }
   }
 
+  const saveLogoDisplaySettings = async () => {
+    setLogoSettingsBusy(true)
+    setMessage('')
+    try {
+      const { error } = await supabase.from('site_settings').upsert({
+        singleton: true,
+        logo_scale: logoScale,
+        logo_opacity: logoOpacity,
+        updated_at: new Date().toISOString(),
+      })
+      if (error) throw error
+      setMessage('Logo display settings saved.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not save logo display settings.')
+    } finally {
+      setLogoSettingsBusy(false)
+    }
+  }
+
   const uploadLogo = async (file?: File) => {
     if (!file) return
     if (!['image/png', 'image/svg+xml'].includes(file.type) || file.size > 5 * 1024 * 1024) {
@@ -148,18 +172,33 @@ export default function AdminDashboard() {
 
       <section style={{ padding: '1.25rem', border: '1px solid rgba(255,255,255,.09)', borderRadius: 6, marginBottom: '2.5rem' }}>
         <h2 style={{ fontSize: '.82rem', marginBottom: '.45rem' }}>Website logo</h2>
-        <p style={{ fontSize: '.72rem', color: '#888', marginBottom: '1rem', lineHeight: 1.6 }}>Recommended: 1200 × 300 px transparent PNG or SVG. It appears at the top centre, displayed up to 240 × 60 px.</p>
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          {logoPath && <div style={{ width: 240, height: 60, display: 'grid', placeItems: 'center', background: '#222', borderRadius: 4 }}>
+        <p style={{ fontSize: '.72rem', color: '#888', marginBottom: '1rem', lineHeight: 1.6 }}>Recommended upload: 1200 × 300 px transparent PNG or SVG. Adjust its website size and opacity below.</p>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+          {logoPath && <div style={{ width: 240, height: 60, display: 'grid', placeItems: 'center', background: '#222', borderRadius: 4, overflow: 'visible' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={SUPABASE_URL + '/storage/v1/object/public/' + logoPath + '?v=' + encodeURIComponent(logoPath)} alt="Current website logo" style={{ maxWidth: 240, maxHeight: 60, objectFit: 'contain' }} />
+            <img src={SUPABASE_URL + '/storage/v1/object/public/' + logoPath + '?v=' + encodeURIComponent(logoPath)} alt="Current website logo" style={{ maxWidth: 240, maxHeight: 60, objectFit: 'contain', opacity: logoOpacity / 100, transform: 'scale(' + logoScale / 100 + ')', transformOrigin: 'center' }} />
           </div>}
           <label style={{ color: '#F2EDE6', fontSize: '.72rem', cursor: 'pointer', border: '1px solid rgba(255,255,255,.18)', borderRadius: 4, padding: '.65rem .85rem', opacity: logoBusy ? .5 : 1 }}>
             {logoBusy ? 'Saving…' : logoPath ? 'Replace logo' : 'Upload logo'}
             <input type="file" accept="image/png,image/svg+xml" disabled={logoBusy} hidden onChange={event => { uploadLogo(event.target.files?.[0]); event.currentTarget.value = '' }} />
           </label>
-          {message && <span role="status" style={{ color: '#aaa', fontSize: '.72rem' }}>{message}</span>}
         </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', maxWidth: 560 }}>
+          <label style={{ display: 'grid', gap: '.5rem', fontSize: '.7rem', color: '#ccc' }}>
+            <span>Logo size <strong style={{ color: '#F2EDE6' }}>{logoScale}%</strong></span>
+            <input type="range" min="50" max="200" step="5" value={logoScale} disabled={logoSettingsBusy} onChange={event => setLogoScale(Number(event.target.value))} aria-label="Logo size" />
+            <span style={{ display: 'flex', justifyContent: 'space-between', color: '#777' }}><span>50%</span><span>200%</span></span>
+          </label>
+          <label style={{ display: 'grid', gap: '.5rem', fontSize: '.7rem', color: '#ccc' }}>
+            <span>Logo opacity <strong style={{ color: '#F2EDE6' }}>{logoOpacity}%</strong></span>
+            <input type="range" min="0" max="100" step="5" value={logoOpacity} disabled={logoSettingsBusy} onChange={event => setLogoOpacity(Number(event.target.value))} aria-label="Logo opacity" />
+            <span style={{ display: 'flex', justifyContent: 'space-between', color: '#777' }}><span>0%</span><span>100%</span></span>
+          </label>
+        </div>
+        <button type="button" onClick={saveLogoDisplaySettings} disabled={logoSettingsBusy} style={{ marginTop: '1rem', padding: '.6rem .9rem', borderRadius: 4, background: '#E8590C', color: '#111', fontSize: '.7rem', cursor: 'pointer', opacity: logoSettingsBusy ? .5 : 1 }}>
+          {logoSettingsBusy ? 'Saving…' : 'Save display settings'}
+        </button>
+        {message && <p role="status" style={{ color: '#aaa', fontSize: '.72rem', marginTop: '.75rem' }}>{message}</p>}
       </section>
 
       {photographs.length === 0 ? <section style={{ padding: '3rem', textAlign: 'center', border: '1px dashed rgba(255,255,255,.1)', color: '#777' }}>
