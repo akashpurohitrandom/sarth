@@ -140,10 +140,11 @@ body::before {
 }
 
 .gallery-wordmark img {
-  width: min(16vw, 192px);
-  height: min(4vw, 48px);
-  min-width: 120px;
-  min-height: 30px;
+  width: calc(min(16vw, 192px) * var(--logo-scale, 1));
+  height: calc(min(4vw, 48px) * var(--logo-scale, 1));
+  min-width: calc(120px * var(--logo-scale, 1));
+  min-height: calc(30px * var(--logo-scale, 1));
+  opacity: var(--logo-opacity, 1);
   object-fit: contain;
   filter: brightness(0) invert(1);
 }
@@ -219,7 +220,12 @@ body::before {
 
 @media (max-width: 700px) {
   .gallery-image { object-position: 50% 50%; }
-  .gallery-wordmark img { width: 144px; height: 38px; }
+  .gallery-wordmark img {
+    width: calc(144px * var(--logo-scale, 1));
+    height: calc(38px * var(--logo-scale, 1));
+    min-width: 0;
+    min-height: 0;
+  }
   .gallery-details { max-width: 68vw; bottom: 5.25rem; }
   .gallery-hint { right: auto; left: 1.25rem; bottom: 1.5rem; }
   .gallery-controls { right: 1.25rem; bottom: 1.35rem; gap: .7rem; }
