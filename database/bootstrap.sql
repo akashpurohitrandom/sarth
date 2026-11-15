@@ -33,6 +33,8 @@ create index photographs_display_target_created_idx on public.photographs(displa
 create table public.site_settings (
   singleton boolean primary key default true check (singleton),
   logo_path text,
+  logo_scale smallint not null default 100 check (logo_scale between 50 and 200),
+  logo_opacity smallint not null default 100 check (logo_opacity between 0 and 100),
   updated_at timestamptz not null default now()
 );
 insert into public.site_settings(singleton) values (true);
