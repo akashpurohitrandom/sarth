@@ -177,7 +177,7 @@ export default function AdminDashboard() {
         <h2 style={{ fontSize: '.82rem', marginBottom: '.45rem' }}>Website logo</h2>
         <p style={{ fontSize: '.72rem', color: '#888', marginBottom: '1rem', lineHeight: 1.6 }}>Recommended upload: 1200 × 300 px transparent PNG or SVG. Adjust its website size and opacity below.</p>
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
-          {logoPath && <div style={{ width: 240, height: 60, display: 'grid', placeItems: 'center', background: '#222', borderRadius: 4, overflow: 'visible' }}>
+          {logoPath && <div style={{ width: '100%', maxWidth: 480, height: 120, display: 'grid', placeItems: 'center', background: '#222', borderRadius: 4, overflow: 'visible' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={SUPABASE_URL + '/storage/v1/object/public/' + logoPath + '?v=' + encodeURIComponent(logoPath)} alt="Current website logo" style={{ maxWidth: 240, maxHeight: 60, objectFit: 'contain', opacity: logoOpacity / 100, transform: 'scale(' + logoScale / 100 + ')', transformOrigin: 'center' }} />
           </div>}
