@@ -34,13 +34,13 @@ export default function AdminDashboard() {
       supabase.from('photographs').select('*').order('created_at', { ascending: false }).limit(100),
       supabase.from('site_settings').select('logo_path, logo_scale, logo_opacity').eq('singleton', true).maybeSingle(),
     ])
-    const settings = settingsResult.error
+    const settings = (settingsResult.error
       ? (await supabase.from('site_settings').select('logo_path').eq('singleton', true).maybeSingle()).data
-      : settingsResult.data
+      : settingsResult.data) as { logo_path?: string | null; logo_scale?: number | null; logo_opacity?: number | null } | null
     setPhotographs(photos ?? [])
     setLogoPath(settings?.logo_path ?? null)
-    setLogoScale('logo_scale' in (settings ?? {}) ? settings.logo_scale ?? 100 : 100)
-    setLogoOpacity('logo_opacity' in (settings ?? {}) ? settings.logo_opacity ?? 100 : 100)
+    setLogoScale(settings?.logo_scale ?? 100)
+    setLogoOpacity(settings?.logo_opacity ?? 100)
     setLoading(false)
   }, [])
 
