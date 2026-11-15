@@ -30,14 +30,17 @@ export default function AdminDashboard() {
   const [editMessage, setEditMessage] = useState('')
 
   const load = useCallback(async () => {
-    const [{ data: photos }, { data: settings }] = await Promise.all([
+    const [{ data: photos }, settingsResult] = await Promise.all([
       supabase.from('photographs').select('*').order('created_at', { ascending: false }).limit(100),
       supabase.from('site_settings').select('logo_path, logo_scale, logo_opacity').eq('singleton', true).maybeSingle(),
     ])
+    const settings = settingsResult.error
+      ? (await supabase.from('site_settings').select('logo_path').eq('singleton', true).maybeSingle()).data
+      : settingsResult.data
     setPhotographs(photos ?? [])
     setLogoPath(settings?.logo_path ?? null)
-    setLogoScale(settings?.logo_scale ?? 100)
-    setLogoOpacity(settings?.logo_opacity ?? 100)
+    setLogoScale('logo_scale' in (settings ?? {}) ? settings.logo_scale ?? 100 : 100)
+    setLogoOpacity('logo_opacity' in (settings ?? {}) ? settings.logo_opacity ?? 100 : 100)
     setLoading(false)
   }, [])
 
