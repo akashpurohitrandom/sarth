@@ -14,9 +14,9 @@ function imageUrl(path: string) {
   return path.startsWith('http') ? path : `${SUPABASE_URL}/storage/v1/object/public/${path}`
 }
 
-type Props = { logoUrl: string | null }
+type Props = { logoUrl: string | null; logoScale: number; logoOpacity: number }
 
-export default function Gallery({ logoUrl }: Props) {
+export default function Gallery({ logoUrl, logoScale, logoOpacity }: Props) {
   const [photographs, setPhotographs] = useState<GalleryPhoto[]>([])
   const [sequenceTarget, setSequenceTarget] = useState<'desktop' | 'mobile' | null>(null)
   const [isMobile, setIsMobile] = useState<boolean | null>(null)
@@ -240,7 +240,7 @@ export default function Gallery({ logoUrl }: Props) {
       )}
       <div className="gallery-shade" aria-hidden="true" />
 
-      <a className="gallery-wordmark" href="/" aria-label="Sārth home">
+      <a className="gallery-wordmark" href="/" aria-label="Sārth home" style={{ "--logo-scale": String(logoScale / 100), "--logo-opacity": String(logoOpacity / 100) } as React.CSSProperties}>
         {logoUrl ? <img src={logoUrl} alt="Sārth" /> : 'Sārth'}
       </a>
 
