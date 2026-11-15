@@ -14,9 +14,9 @@ export default async function HomePage() {
   )
   const settingsResult = await supabase.from('site_settings')
     .select('logo_path, logo_scale, logo_opacity').eq('singleton', true).maybeSingle()
-  const settings = settingsResult.error
+  const settings = (settingsResult.error
     ? (await supabase.from('site_settings').select('logo_path').eq('singleton', true).maybeSingle()).data
-    : settingsResult.data
+    : settingsResult.data) as { logo_path?: string | null; logo_scale?: number | null; logo_opacity?: number | null } | null
   const logoScale = Math.min(200, Math.max(50, Number(settings?.logo_scale ?? 100)))
   const logoOpacity = Math.min(100, Math.max(0, Number(settings?.logo_opacity ?? 100)))
   const logoUrl = settings?.logo_path
