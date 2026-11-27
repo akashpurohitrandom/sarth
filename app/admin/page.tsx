@@ -16,6 +16,7 @@ const editInputStyle: React.CSSProperties = {
 
 export default function AdminDashboard() {
   const [photographs, setPhotographs] = useState<Photograph[]>([])
+  const [viewFilter, setViewFilter] = useState<'all' | 'mobile' | 'desktop'>('all')
   const [logoPath, setLogoPath] = useState<string | null>(null)
   const [logoScale, setLogoScale] = useState(100)
   const [logoOpacity, setLogoOpacity] = useState(100)
@@ -45,6 +46,10 @@ export default function AdminDashboard() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  const visiblePhotographs = viewFilter === 'all'
+    ? photographs
+    : photographs.filter(photo => photo.display_target === viewFilter)
 
   const beginEdit = (photo: Photograph) => {
     setEditingPhotoId(photo.id)
@@ -171,6 +176,34 @@ export default function AdminDashboard() {
       <div style={{ marginBottom: '2.5rem' }}>
         <h1 style={{ fontFamily: 'DM Serif Display, Georgia, serif', fontStyle: 'italic', fontSize: '2.2rem', marginBottom: '.5rem' }}>Photographs</h1>
         <p style={{ fontSize: '.8rem', color: '#777' }}>{photographs.filter(photo => photo.display_target === 'desktop').length} desktop · {photographs.filter(photo => photo.display_target === 'mobile').length} mobile</p>
+        <nav aria-label="Filter photographs by view" style={{ display: 'flex', flexWrap: 'wrap', gap: '.45rem', marginTop: '1rem' }}>
+          {([
+            { value: 'all', label: 'All', count: photographs.length },
+            { value: 'mobile', label: 'Mobile', count: photographs.filter(photo => photo.display_target === 'mobile').length },
+            { value: 'desktop', label: 'Desktop', count: photographs.filter(photo => photo.display_target === 'desktop').length },
+          ] as const).map(option => {
+            const selected = viewFilter === option.value
+            return <button
+              key={option.value}
+              type="button"
+              aria-pressed={selected}
+              disabled={editingPhotoId !== null}
+              onClick={() => setViewFilter(option.value)}
+              style={{
+                padding: '.5rem .75rem',
+                border: '1px solid ' + (selected ? '#E8590C' : 'rgba(255,255,255,.16)'),
+                borderRadius: 4,
+                background: selected ? '#E8590C' : 'transparent',
+                color: selected ? '#111' : '#ccc',
+                fontSize: '.68rem',
+                cursor: editingPhotoId !== null ? 'not-allowed' : 'pointer',
+                opacity: editingPhotoId !== null ? .5 : 1,
+              }}
+            >
+              {option.label} <span style={{ opacity: selected ? .7 : .6 }}>{option.count}</span>
+            </button>
+          })}
+        </nav>
       </div>
 
       <section style={{ padding: '1.25rem', border: '1px solid rgba(255,255,255,.09)', borderRadius: 6, marginBottom: '2.5rem' }}>
@@ -204,10 +237,12 @@ export default function AdminDashboard() {
         {message && <p role="status" style={{ color: '#aaa', fontSize: '.72rem', marginTop: '.75rem' }}>{message}</p>}
       </section>
 
-      {photographs.length === 0 ? <section style={{ padding: '3rem', textAlign: 'center', border: '1px dashed rgba(255,255,255,.1)', color: '#777' }}>
-        <p style={{ marginBottom: '1rem', fontSize: '.85rem' }}>No photographs yet.</p><a href="/admin/new" style={{ color: '#E8590C', fontSize: '.7rem', letterSpacing: '.15em', textTransform: 'uppercase' }}>Add photographs →</a>
+      {visiblePhotographs.length === 0 ? <section style={{ padding: '3rem', textAlign: 'center', border: '1px dashed rgba(255,255,255,.1)', color: '#777' }}>
+        {photographs.length === 0 ? <>
+          <p style={{ marginBottom: '1rem', fontSize: '.85rem' }}>No photographs yet.</p><a href="/admin/new" style={{ color: '#E8590C', fontSize: '.7rem', letterSpacing: '.15em', textTransform: 'uppercase' }}>Add photographs →</a>
+        </> : <p style={{ fontSize: '.85rem' }}>No {viewFilter} photographs yet.</p>}
       </section> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '1rem' }}>
-        {photographs.map(photo => {
+        {visiblePhotographs.map(photo => {
           const isEditing = editingPhotoId === photo.id && editDraft !== null
           const isSaving = savingPhotoId === photo.id
           const fieldLabel = 'for photograph ' + photo.id.slice(0, 8)
